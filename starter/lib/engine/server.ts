@@ -9,7 +9,7 @@ import { relatedRecords } from "@/lib/schema"
 import { anthropicFromEnv } from "@/lib/reviewer/anthropic"
 import { createPostgresReviewCache } from "@/lib/reviewer/postgres-cache"
 import { createPostgresTraceStore } from "@/lib/reviewer/postgres-trace"
-import { createTracedGateway } from "@/lib/reviewer/trace"
+import { createTracedGateway, type TraceStore } from "@/lib/reviewer/trace"
 import { reviewSourceFromDatabase } from "@/lib/reviewer/source"
 import { createEngine, type Engine } from "./engine"
 import { createLessonFeeds, type LessonFeeds } from "./lessons"
@@ -43,6 +43,7 @@ const cache = globalThis as unknown as {
   controlRoomPlain?: PlainWordsService
   controlRoomStore?: EngineStore; controlRoomLessons?: LessonFeeds
   controlRoomGateway?: { gateway: ModelGateway | null }
+  controlRoomTraces?: TraceStore
 }
 
 /** The engine's store (Postgres). */
@@ -61,6 +62,12 @@ export function lessonFeeds(): LessonFeeds {
   return cache.controlRoomLessons
 }
 
+/** Agent runs, model calls and prompt texts (Postgres): what the gateway writes and the /dev/trace pages read. */
+export function getTraceStore(): TraceStore {
+  cache.controlRoomTraces ??= createPostgresTraceStore(db)
+  return cache.controlRoomTraces
+}
+
 /**
  * The model (Anthropic), every call kept under its agent run in cr_agent_runs and
  * cr_model_calls (lib/reviewer/trace.ts, spec .scratch/traceability); null without
@@ -69,7 +76,7 @@ export function lessonFeeds(): LessonFeeds {
 function modelGateway(): ModelGateway | null {
   if (!cache.controlRoomGateway) {
     const gateway = anthropicFromEnv()
-    cache.controlRoomGateway = { gateway: gateway && createTracedGateway(gateway, createPostgresTraceStore(db)) }
+    cache.controlRoomGateway = { gateway: gateway && createTracedGateway(gateway, getTraceStore()) }
   }
   return cache.controlRoomGateway.gateway
 }
