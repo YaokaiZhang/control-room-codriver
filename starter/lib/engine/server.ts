@@ -9,7 +9,7 @@ import { relatedRecords } from "@/lib/schema"
 import { anthropicFromEnv } from "@/lib/reviewer/anthropic"
 import { createPostgresReviewCache } from "@/lib/reviewer/postgres-cache"
 import { createPostgresTraceStore } from "@/lib/reviewer/postgres-trace"
-import { createTracedGateway } from "@/lib/reviewer/trace"
+import { createTracedGateway, type TraceStore } from "@/lib/reviewer/trace"
 import { reviewSourceFromDatabase } from "@/lib/reviewer/source"
 import { createEngine, type Engine } from "./engine"
 import { createLessonFeeds, type LessonFeeds } from "./lessons"
@@ -43,12 +43,19 @@ const cache = globalThis as unknown as {
   controlRoomPlain?: PlainWordsService
   controlRoomStore?: EngineStore; controlRoomLessons?: LessonFeeds
   controlRoomGateway?: { gateway: ModelGateway | null }
+  controlRoomTrace?: TraceStore
 }
 
 /** The engine's store (Postgres). */
 export function getStore(): EngineStore {
   cache.controlRoomStore ??= createPostgresStore(db)
   return cache.controlRoomStore
+}
+
+/** Agent runs, model calls and prompt texts (Postgres; spec .scratch/traceability). The traced gateway writes here. */
+export function getTraceStore(): TraceStore {
+  cache.controlRoomTrace ??= createPostgresTraceStore(db)
+  return cache.controlRoomTrace
 }
 
 /**
@@ -69,7 +76,7 @@ export function lessonFeeds(): LessonFeeds {
 function modelGateway(): ModelGateway | null {
   if (!cache.controlRoomGateway) {
     const gateway = anthropicFromEnv()
-    cache.controlRoomGateway = { gateway: gateway && createTracedGateway(gateway, createPostgresTraceStore(db)) }
+    cache.controlRoomGateway = { gateway: gateway && createTracedGateway(gateway, getTraceStore()) }
   }
   return cache.controlRoomGateway.gateway
 }

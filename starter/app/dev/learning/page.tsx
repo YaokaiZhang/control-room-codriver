@@ -1,14 +1,17 @@
 // /dev/learning: the lessons loop for engineers (spec .scratch/self-improving-agents).
 // Every mistake with its note, restatement and tags; each group and whether it qualifies;
 // every distil run with the gate's trace (spec checks, the judge's verdicts and reasons);
-// every lesson with its events. Read-only, unstyled on purpose, not linked from the
+// every lesson with its events and what happened after it was approved (lesson-impact.ts,
+// spec .scratch/traceability issue 05), linking to /dev/trace. Read-only, unstyled on purpose, not linked from the
 // operator's pages. Off in production unless DEV_PAGES=1.
 
 import { notFound } from "next/navigation"
 import { groupHistory, groupMistakes, qualifies, type DistilRun, type GateTraceRun } from "@/lib/engine/distil"
+import { lessonImpacts, type ImpactWindow, type LessonImpact } from "@/lib/engine/lesson-impact"
 import { readLessons, type Lesson } from "@/lib/engine/lessons"
 import type { Mistake } from "@/lib/engine/mistakes"
-import { getStore } from "@/lib/engine/server"
+import { getStore, getTraceStore } from "@/lib/engine/server"
+import type { AgentRunRow } from "@/lib/reviewer/trace"
 
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Learning trace · dev" }
@@ -25,6 +28,10 @@ const CSS = `
 
 const time = (iso: string | null) => iso ? iso.replace("T", " ").replace(/:\d\d(\.\d+)?Z$/, "Z") : "-"
 const usd = (value: number) => `$${value.toFixed(4)}`
+const runLink = (id: string) => `/dev/trace/run/${encodeURIComponent(id)}`
+const orderLink = (id: string) => `/dev/trace/${encodeURIComponent(id)}`
+/** Run links shown on a lesson before "and N more". */
+const MAX_RUN_LINKS = 10
 const tone = (value: string) => ["usable", "candidate", "approved", "fixed", "restated"].includes(value) ? "ok"
   : ["unusable", "dropped", "failed", "invalid", "rejected", "repeats"].includes(value) ? "bad" : "warn"
 
@@ -37,10 +44,11 @@ function Mistakes({ mistakes }: { mistakes: Mistake[] }) {
   return <div className="wrap"><table>
     <thead><tr><th>id / recorded</th><th>demo day</th><th>agent / kind</th><th>order</th><th>status</th><th>tags</th><th>what was wrong</th><th>raw</th></tr></thead>
     <tbody>{mistakes.map((mistake) => <tr key={mistake.id} id={mistake.id}>
-      <td>{mistake.id}<br /><span className="muted">{time(mistake.recordedAt)}</span></td>
+      <td>{mistake.id}<br /><span className="muted">{time(mistake.recordedAt)}</span>
+        {mistake.runId && <div>run <a href={runLink(mistake.runId)}>{mistake.runId.slice(0, 12)}</a></div>}</td>
       <td>{time(mistake.at)}</td>
       <td>{mistake.agent}<br />{mistake.kind}</td>
-      <td>{mistake.orderId ?? "-"}</td>
+      <td>{mistake.orderId ? <a href={orderLink(mistake.orderId)}>{mistake.orderId}</a> : "-"}</td>
       <td className={tone(mistake.status)}>{mistake.status}{mistake.unusableReason ? <><br /><span className="muted">{mistake.unusableReason}</span></> : null}</td>
       <td>{mistake.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}</td>
       <td>
@@ -86,9 +94,27 @@ function Runs({ runs }: { runs: DistilRun[] }) {
   </table></div>
 }
 
-function Lessons({ lessons }: { lessons: Lesson[] }) {
+function Rate({ label, window }: { label: string; window: ImpactWindow }) {
+  return <div>{label}: {window.per100 === null ? "-" : window.per100.toFixed(1)} per 100 reviews <span className="muted">({window.mistakes} mistake(s) in {window.runs} review(s))</span></div>
+}
+
+/** What happened after approval: reviews it was in, the group's rate before and after, mistakes despite it. */
+function Impact({ impact, status }: { impact: LessonImpact | undefined; status: Lesson["status"] }) {
+  if (!impact) return <span className="muted">not traced</span>
+  const shown = impact.injected.runIds.slice(0, MAX_RUN_LINKS)
+  const more = impact.injected.count - shown.length
+  return <div>
+    <div>in {impact.injected.count} review(s){shown.length > 0 && ": "}{shown.map((id) => <a key={id} href={runLink(id)} style={{ marginRight: 6 }}>{id.slice(0, 12)}</a>)}{more > 0 && <span> and {more} more</span>}</div>
+    <div className="muted">group: {impact.groups.length ? impact.groups.join(", ") : "none known"}</div>
+    <Rate label="before approval" window={impact.before} />
+    {impact.after ? <Rate label={status === "retired" ? "after, to retirement" : "after approval"} window={impact.after} /> : <div className="muted">after: - (never approved)</div>}
+    <div>despite the lesson: {impact.despite.length ? impact.despite.map((id) => <a key={id} href={`#${id}`} style={{ marginRight: 6 }}>{id.slice(0, 11)}</a>) : "none"}</div>
+  </div>
+}
+
+function Lessons({ lessons, impacts }: { lessons: Lesson[]; impacts: Map<string, LessonImpact> }) {
   return <div className="wrap"><table>
-    <thead><tr><th>id / created</th><th>agent / by</th><th>status</th><th>lesson</th><th>applies to</th><th>sources</th><th>spec eval</th><th>events</th></tr></thead>
+    <thead><tr><th>id / created</th><th>agent / by</th><th>status</th><th>lesson</th><th>applies to</th><th>sources</th><th>spec eval</th><th>events</th><th>after approval</th></tr></thead>
     <tbody>{lessons.map((lesson) => <tr key={lesson.id} id={lesson.id}>
       <td>{lesson.id}<br /><span className="muted">{time(lesson.createdAt)}</span></td>
       <td>{lesson.agent}<br />{lesson.by}</td>
@@ -98,6 +124,7 @@ function Lessons({ lessons }: { lessons: Lesson[] }) {
       <td>{lesson.sourceMistakeIds.map((id) => <div key={id}><a href={`#${id}`}>{id.slice(0, 11)}</a></div>)}</td>
       <td>{lesson.evalBefore ?? "-"} → {lesson.evalAfter ?? "-"}</td>
       <td>{lesson.history.map((event, index) => <div key={index}>{time(event.at)} {event.kind} by {event.by}{event.text ? `: ${event.text}` : ""}</div>)}</td>
+      <td>{lesson.agent === "reviewer" ? <Impact impact={impacts.get(lesson.id)} status={lesson.status} /> : <span className="muted">-</span>}</td>
     </tr>)}</tbody>
   </table></div>
 }
@@ -105,7 +132,12 @@ function Lessons({ lessons }: { lessons: Lesson[] }) {
 export default async function LearningTracePage() {
   if (process.env.NODE_ENV === "production" && process.env.DEV_PAGES !== "1") notFound()
   const store = getStore()
-  const [mistakes, runs, lessons] = await Promise.all([store.readMistakes(), store.readDistilRuns(), readLessons(store)])
+  // One read of every top-level review run, for every lesson; null when the trace tables aren't there (not pushed yet).
+  const [mistakes, runs, lessons, reviews] = await Promise.all([
+    store.readMistakes(), store.readDistilRuns(), readLessons(store),
+    getTraceStore().readRuns({ job: "reviewer", parentRunId: null }).catch((): AgentRunRow[] | null => null),
+  ])
+  const impacts = new Map(reviews ? lessonImpacts({ lessons, distilRuns: runs, reviewerRuns: reviews, mistakes }).map((row) => [row.lessonId, row]) : [])
   const groups = groupMistakes(mistakes).map((group) => ({ group, check: qualifies(group, groupHistory(group.key, runs, lessons)) }))
   const newest = <T,>(rows: T[], key: (row: T) => string) => [...rows].sort((a, b) => key(b).localeCompare(key(a)))
   const spent = runs.reduce((sum, run) => sum + run.cost, 0)
@@ -130,7 +162,7 @@ export default async function LearningTracePage() {
     {runs.length ? <Runs runs={newest(runs, (run) => run.startedAt)} /> : <p className="muted">No runs yet.</p>}
 
     <h2 id="lessons">Lessons, newest first</h2>
-    {lessons.length ? <Lessons lessons={newest(lessons, (lesson) => lesson.createdAt)} /> : <p className="muted">No lessons yet.</p>}
+    {lessons.length ? <Lessons lessons={newest(lessons, (lesson) => lesson.createdAt)} impacts={impacts} /> : <p className="muted">No lessons yet.</p>}
 
     <h2 id="mistakes">Mistakes, newest first</h2>
     {mistakes.length ? <Mistakes mistakes={newest(mistakes, (row) => row.recordedAt)} /> : <p className="muted">No mistakes yet.</p>}
