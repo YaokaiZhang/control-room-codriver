@@ -232,6 +232,8 @@ export const distilRuns = pgTable("cr_distil_runs", {
   detail: text("detail").notNull(),
   /** The gate's trace, for engineers (/dev/learning); null when the gate did not run. */
   gate: jsonb("gate").$type<GateTrace>(),
+  /** The distiller's agent run (cr_agent_runs); the gate's reviews and judges are its children. Null for restate rows and before tracing. */
+  agentRunId: text("agent_run_id"),
 }, (table) => [index("cr_distil_runs_started_idx").on(table.startedAt)])
 
 /**

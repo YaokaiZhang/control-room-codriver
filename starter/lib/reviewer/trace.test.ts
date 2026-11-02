@@ -124,6 +124,7 @@ test("a review cached before tracing still loads, without a run", async () => {
 eachTraceStore("a call outside any run gets a one-turn run of its own from its job and subject; a failed call keeps its error", async (store) => {
   const ok = createTracedGateway(replying("Plainly."), store, quiet)
   await ok.chat(request())
+  await ok.flush()
   const [run] = await store.readRuns({ subject: "card-1" })
   assert.deepEqual({ job: run.job, model: run.model, outcome: run.outcome, cost: run.cost, parent: run.parentRunId }, { job: "plain-words", model: "m", outcome: "ok", cost: 0.001, parent: null })
   assert.equal(await store.readPrompt(run.promptHash!), "Be plain.")
@@ -132,6 +133,7 @@ eachTraceStore("a call outside any run gets a one-turn run of its own from its j
 
   const down = createTracedGateway({ chat: async () => { throw new GatewayError("Anthropic request failed: 529") } }, store, quiet)
   await assert.rejects(down.chat(request({ subject: "card-2" })), /529/)
+  await down.flush()
   const [failed] = await store.readRuns({ subject: "card-2" })
   assert.equal(failed.outcome, "failed")
   const [lost] = await store.readCalls(failed.id)
@@ -184,8 +186,25 @@ test("the logged request carries no key: the provider adds auth outside it", asy
   }), { status: 200, headers: { "content-type": "application/json" } })) as typeof globalThis.fetch
   const gateway = createTracedGateway(createAnthropicGateway({ apiKey: "sk-ant-secret-for-test", fetch }), store, quiet)
   await gateway.chat(request())
+  await gateway.flush()
   const [run] = await store.readRuns({ subject: "card-1" })
   const calls = await store.readCalls(run.id)
   assert.equal(calls.length, 1)
   assert.doesNotMatch(JSON.stringify({ run, calls }), /sk-ant-secret-for-test/)
+})
+
+test("a reply is handed back without waiting for its trace writes; finish and flush wait for them", async () => {
+  const memory = createMemoryTraceStore()
+  let release = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const slow: TraceStore = { ...memory, startRun: async (row) => { await gate; return memory.startRun(row) } }
+  const gateway = createTracedGateway(replying("fast"), slow, quiet)
+  assert.equal((await gateway.chat(request({ subject: "card-3" }))).message.content, "fast")
+  assert.deepEqual(await memory.readRuns({ subject: "card-3" }), [], "nothing stored yet")
+  const flushed = gateway.flush()
+  release()
+  await flushed
+  const [run] = await memory.readRuns({ subject: "card-3" })
+  assert.equal(run.outcome, "ok")
+  assert.equal((await memory.readCalls(run.id)).length, 1)
 })

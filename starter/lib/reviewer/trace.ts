@@ -15,7 +15,9 @@
 // - The system prompt is stored once by hash (cr_prompt_texts); a logged request keeps
 //   only its hash in the system message's place. The request is what the agent handed
 //   the gateway: the provider adds auth outside it, so no key is ever logged.
-// - Tracing never breaks an agent: a failed write is logged and swallowed.
+// - Tracing never breaks or slows an agent: writes run off the call's path, in order per
+//   run, and a failed write is logged and swallowed. `finish` waits for the run's writes;
+//   a script calls `flush()` before it closes the database.
 
 import { createHash, randomUUID } from "node:crypto"
 import { performance } from "node:perf_hooks"
@@ -166,12 +168,22 @@ export type TraceOptions = {
   log?: (line: string) => void
 }
 
-/** `inner` with every call kept in `store`. */
-export function createTracedGateway(inner: ModelGateway, store: TraceStore, options: TraceOptions = {}): TracedGateway {
+export type TracingGateway = TracedGateway & {
+  /** Resolves once every trace write started so far has landed (tests, scripts before exit). */
+  flush(): Promise<void>
+}
+
+/**
+ * `inner` with every call kept in `store`. Writes run in order per run, off the call's
+ * path: a reply is handed back without waiting for its turn to be stored, and
+ * `finish` resolves once the run's writes have landed.
+ */
+export function createTracedGateway(inner: ModelGateway, store: TraceStore, options: TraceOptions = {}): TracingGateway {
   const clock = options.clock ?? (() => new Date())
   const log = options.log ?? ((line: string) => console.error(`trace: ${line}`))
   /** Prompt hashes already stored by this process. */
   const stored = new Set<string>()
+  const pending = new Set<Promise<unknown>>()
 
   async function safely(what: string, write: () => Promise<void>): Promise<boolean> {
     try {
@@ -201,39 +213,48 @@ export function createTracedGateway(inner: ModelGateway, store: TraceStore, opti
 
   function open(start: RunStart): AgentRun {
     const id = `run-${randomUUID()}`
-    const prompt = start.prompt ?? null
+    const startedAt = clock().toISOString()
     let turns = 0
     let usage = NO_USAGE
     let finished = false
-    const ready = (async () => {
-      const promptHash = prompt === null ? null : await savePrompt(prompt)
-      await safely(`run ${id}`, () => store.startRun({
+    /** This run's writes, one after another. */
+    let queue: Promise<unknown> = Promise.resolve()
+    const write = (what: string, work: () => Promise<void>): Promise<unknown> => {
+      const next = queue.then(() => safely(what, work))
+      queue = next
+      pending.add(next)
+      void next.finally(() => pending.delete(next))
+      return next
+    }
+
+    write(`run ${id}`, async () => {
+      const promptHash = start.prompt == null ? null : await savePrompt(start.prompt)
+      await store.startRun({
         id, job: start.job, subject: start.subject, parentRunId: start.parentRunId ?? null, promptVersion: start.promptVersion ?? null,
         promptHash, model: start.model, lessonIds: start.lessonIds ?? [], inputHash: start.inputHash ?? null,
-        startedAt: clock().toISOString(), finishedAt: null, outcome: "running", usage: null, cost: null,
-      }))
-    })()
+        startedAt, finishedAt: null, outcome: "running", usage: null, cost: null,
+      })
+    })
 
     const gateway: TracedGateway = {
       async chat(request) {
-        await ready
         turns += 1
         const turn = turns
         const at = clock().toISOString()
         const began = performance.now()
-        const sent = await logged(request).catch(() => ({ model: request.model, messages: [] }))
-        const latency = () => Math.round(performance.now() - began)
+        const sent = { ...request, messages: [...request.messages] }
+        const record = (rest: Pick<ModelCallRow, "response" | "usage" | "error">) => {
+          const latencyMs = Math.round(performance.now() - began)
+          write(`turn ${turn} of ${id}`, async () => store.addCall({ runId: id, turn, at, latencyMs, request: await logged(sent), ...rest }))
+        }
         try {
           const response = await inner.chat(request)
           usage = addUsage(usage, response.usage)
           const { message: reply, finishReason, model, id: responseId } = response
-          await safely(`turn ${turn} of ${id}`, () => store.addCall({
-            runId: id, turn, at, latencyMs: latency(), request: sent,
-            response: { message: reply, finishReason, model, ...(responseId ? { id: responseId } : {}) }, usage: response.usage, error: null,
-          }))
+          record({ response: { message: reply, finishReason, model, ...(responseId ? { id: responseId } : {}) }, usage: response.usage, error: null })
           return response
         } catch (error) {
-          await safely(`turn ${turn} of ${id}`, () => store.addCall({ runId: id, turn, at, latencyMs: latency(), request: sent, response: null, usage: null, error: message(error) }))
+          record({ response: null, usage: null, error: message(error) })
           throw error
         }
       },
@@ -246,9 +267,9 @@ export function createTracedGateway(inner: ModelGateway, store: TraceStore, opti
       async finish(end) {
         if (finished) return
         finished = true
-        await ready
         const total = end.usage ?? usage
-        await safely(`end of ${id}`, () => store.finishRun(id, { finishedAt: clock().toISOString(), outcome: end.outcome, usage: total, cost: end.cost ?? total.cost }))
+        const finishedAt = clock().toISOString()
+        await write(`end of ${id}`, () => store.finishRun(id, { finishedAt, outcome: end.outcome, usage: total, cost: end.cost ?? total.cost }))
       },
     }
   }
@@ -258,14 +279,17 @@ export function createTracedGateway(inner: ModelGateway, store: TraceStore, opti
       const run = open({ job: request.job, subject: request.subject, model: request.model, prompt: promptOf(request.messages) })
       try {
         const response = await run.gateway.chat(request)
-        await run.finish({ outcome: "ok" })
+        void run.finish({ outcome: "ok" })
         return response
       } catch (error) {
-        await run.finish({ outcome: "failed" })
+        void run.finish({ outcome: "failed" })
         throw error
       }
     },
     startRun: open,
+    async flush() {
+      while (pending.size) await Promise.all([...pending])
+    },
   }
 }
 

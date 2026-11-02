@@ -15,7 +15,10 @@ import postgres from "postgres"
 import { createPostgresStore } from "../lib/engine/postgres"
 import { createMemoryReviewCache, type ReviewCache } from "../lib/reviewer/cache"
 import { anthropicFromEnv } from "../lib/reviewer/anthropic"
+import type { ModelGateway } from "../lib/reviewer/gateway"
 import { createPostgresReviewCache } from "../lib/reviewer/postgres-cache"
+import { createPostgresTraceStore } from "../lib/reviewer/postgres-trace"
+import { createTracedGateway } from "../lib/reviewer/trace"
 import { formatReview } from "../lib/reviewer/report"
 import { createReviewer } from "../lib/reviewer/reviewer"
 import { reviewSourceFromFiles } from "../lib/reviewer/source"
@@ -36,6 +39,7 @@ async function main(): Promise<void> {
   let cache: ReviewCache = createMemoryReviewCache()
   let now = flag("--now") ?? source.snapshot.snapshotAt
   let close = async () => {}
+  let gateway: ModelGateway | null = anthropicFromEnv()
   const url = process.env.DATABASE_URL
   if (url && !process.argv.includes("--no-cache")) {
     const client = postgres(url, { max: 1, onnotice: () => {} })
@@ -45,13 +49,19 @@ async function main(): Promise<void> {
       if (!flag("--now")) now = (await createPostgresStore(db).readClock()) ?? now
       cache = createPostgresReviewCache(db)
       await cache.get("probe")
+      // A review stored for the app names its agent run (lib/reviewer/trace.ts).
+      if (gateway) {
+        const traced = createTracedGateway(gateway, createPostgresTraceStore(db))
+        gateway = traced
+        close = async () => { await traced.flush(); await client.end() }
+      }
     } catch (error) {
       console.error(`Review cache unavailable (${(error as Error).message}); run \`npx drizzle-kit push\`. Using memory.`)
       cache = createMemoryReviewCache()
     }
   }
 
-  const reviewer = createReviewer({ gateway: anthropicFromEnv(), source, cache })
+  const reviewer = createReviewer({ gateway, source, cache })
   try {
     const result = await reviewer.review(order, { now })
     console.log(process.argv.includes("--json") ? JSON.stringify(result, null, 2) : formatReview(result))

@@ -8,6 +8,8 @@ import { db } from "@/lib/db"
 import { relatedRecords } from "@/lib/schema"
 import { anthropicFromEnv } from "@/lib/reviewer/anthropic"
 import { createPostgresReviewCache } from "@/lib/reviewer/postgres-cache"
+import { createPostgresTraceStore } from "@/lib/reviewer/postgres-trace"
+import { createTracedGateway } from "@/lib/reviewer/trace"
 import { reviewSourceFromDatabase } from "@/lib/reviewer/source"
 import { createEngine, type Engine } from "./engine"
 import { createLessonFeeds, type LessonFeeds } from "./lessons"
@@ -40,6 +42,7 @@ const cache = globalThis as unknown as {
   controlRoomPublishing?: ReturnType<typeof setInterval>
   controlRoomPlain?: PlainWordsService
   controlRoomStore?: EngineStore; controlRoomLessons?: LessonFeeds
+  controlRoomGateway?: { gateway: ModelGateway | null }
 }
 
 /** The engine's store (Postgres). */
@@ -56,6 +59,19 @@ export function getStore(): EngineStore {
 export function lessonFeeds(): LessonFeeds {
   cache.controlRoomLessons ??= createLessonFeeds(getStore())
   return cache.controlRoomLessons
+}
+
+/**
+ * The model (Anthropic), every call kept under its agent run in cr_agent_runs and
+ * cr_model_calls (lib/reviewer/trace.ts, spec .scratch/traceability); null without
+ * ANTHROPIC_API_KEY. Every agent gets this one.
+ */
+function modelGateway(): ModelGateway | null {
+  if (!cache.controlRoomGateway) {
+    const gateway = anthropicFromEnv()
+    cache.controlRoomGateway = { gateway: gateway && createTracedGateway(gateway, createPostgresTraceStore(db)) }
+  }
+  return cache.controlRoomGateway.gateway
 }
 
 /** A phone page counts as open while it polled within this many ms. */
@@ -159,7 +175,7 @@ async function travelReference() {
 export function getEngine(): Promise<Engine> {
   cache.controlRoomEngine ??= Promise.all([reviewSourceFromDatabase(db), travelReference()])
     .then(([source, reference]) => {
-      const gateway = anthropicFromEnv()
+      const gateway = modelGateway()
       // Lessons (ticket 03): a usable mistake may start a distil and gate in the background; nothing without a key.
       const learning = createLearning({ store: getStore(), gateway, source, now: async () => (await getStore().readClock()) ?? source.snapshot.snapshotAt })
       const engine = createEngine({
@@ -192,13 +208,13 @@ export function getEngine(): Promise<Engine> {
 
 /** The inbox agent's model and cache (inbox-agent.ts): the reviewer's gateway; template suggestions without a key. */
 export function inboxAgentOptions(): SuggestOptions {
-  return { gateway: anthropicFromEnv(), cache: createPostgresSuggestionCache(db) }
+  return { gateway: modelGateway(), cache: createPostgresSuggestionCache(db) }
 }
 
 /** The situation cards' plain words (plain-words.ts): the reviewer's gateway; code text without a key. Rejected cards are kept as mistakes. */
 export function plainWords(): PlainWordsService {
   cache.controlRoomPlain ??= createPlainWords({
-    gateway: anthropicFromEnv(), cache: createPostgresPlainCache(db),
+    gateway: modelGateway(), cache: createPostgresPlainCache(db),
     lessons: lessonFeeds().plainWords, mistakes: createMistakeLog(getStore()),
   })
   return cache.controlRoomPlain

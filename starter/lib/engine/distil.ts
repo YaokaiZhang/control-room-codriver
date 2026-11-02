@@ -94,6 +94,8 @@ export type DistilRun = {
   detail: string
   /** What the gate saw, run by run; null when it did not run. For engineers only. */
   gate: GateTrace | null
+  /** The distiller's agent run (lib/reviewer/trace.ts), parent of the gate's review and judge runs; null when not traced. */
+  agentRunId: string | null
 }
 
 /** Outcomes where the distiller wrote (or declined) a candidate: what "new since the last candidate" counts from. */

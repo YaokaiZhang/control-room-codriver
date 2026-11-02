@@ -12,14 +12,17 @@
 //   cap is refused and the run ends "failed".
 // - A run first restates mistakes left pending (no key when they were recorded).
 // - Without a gateway: nothing happens.
+// - Each distil is an agent run (lib/reviewer/trace.ts) that cr_distil_runs names; the
+//   gate's reviews and judges run under it, through its gateway.
 
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import type { RuleResult } from "@/lib/reviewer/case-file"
 import { GatewayError, type ModelGateway } from "@/lib/reviewer/gateway"
 import { DEFAULT_LESSONS_MODEL, DEFAULT_REVIEWER_MODEL } from "@/lib/reviewer/reviewer"
 import type { ReviewSource } from "@/lib/reviewer/source"
+import { interceptGateway, startRun } from "@/lib/reviewer/trace"
 import {
-  distil, DistilRejected, groupHistory, groupKeys, groupMistakes, learnedCases, qualifies, runGate, toCandidate,
+  distil, DISTIL_SYSTEM, distillerInput, DistilRejected, groupHistory, groupKeys, groupMistakes, learnedCases, qualifies, runGate, toCandidate,
   type Distilled, type DistilOutcome, type DistilRun, type GateResult, type GateScores, type MistakeGroup,
 } from "./distil"
 import { addLessonCandidate, LessonRefused, lessonId, readLessons } from "./lessons"
@@ -120,17 +123,16 @@ export function createLearning(options: LearningOptions): Learning {
       over: () => spentBefore + spent >= cap,
       /** True once a call was refused: an eval with refused reviews says nothing, so the run fails. */
       refused: () => refused,
-      gateway: {
-        async chat(request) {
-          if (spentBefore + spent >= cap) {
-            refused = true
-            throw new CapReached(capMessage)
-          }
-          const response = await inner.chat(request)
-          spent += response.usage.cost
-          return response
-        },
-      } satisfies ModelGateway,
+      // Runs opened through it are metered too.
+      gateway: interceptGateway(inner, async (request, next) => {
+        if (spentBefore + spent >= cap) {
+          refused = true
+          throw new CapReached(capMessage)
+        }
+        const response = await next(request)
+        spent += response.usage.cost
+        return response
+      }),
     }
   }
 
@@ -142,12 +144,17 @@ export function createLearning(options: LearningOptions): Learning {
   async function runGroup(group: MistakeGroup, all: Mistake[], meter: ReturnType<typeof metered>, dry: boolean): Promise<DistilReport> {
     const id = `dst-${randomUUID()}`
     const startCost = meter.spent()
-    const run: DistilRun = { id, group: group.key, startedAt: clock().toISOString(), finishedAt: null, outcome: "running", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null }
+    const inputHash = createHash("sha256").update(JSON.stringify(distillerInput(group))).digest("hex")
+    const agentRun = startRun(meter.gateway, { job: "distil", subject: group.key, model, prompt: DISTIL_SYSTEM, inputHash })
+    const run: DistilRun = {
+      id, group: group.key, startedAt: clock().toISOString(), finishedAt: null, outcome: "running", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null,
+      agentRunId: agentRun.id,
+    }
     if (!dry) await store.startDistilRun(run)
     let report: DistilReport
     let mistakeIds: string[] = []
     try {
-      const { distilled, input } = await distil(meter.gateway, model, group, all)
+      const { distilled, input } = await distil(agentRun.gateway, model, group, all)
       mistakeIds = input.mistakes.map((row) => row.id)
       if (!distilled) report = { group: group.key, outcome: "no-lesson", detail: "the distiller found nothing the mistakes share", cost: 0, distilled }
       else {
@@ -156,7 +163,7 @@ export function createLearning(options: LearningOptions): Learning {
         else {
           const sources = group.mistakes.filter((mistake) => distilled.mistakeIds.includes(mistake.id))
           const lesson = { id: lessonId("reviewer", distilled.lesson), text: distilled.lesson, appliesTo: distilled.appliesTo }
-          const gate = await runGate({ gateway: meter.gateway, source, model: agentModel, lesson, learned: learnedCases(sources), rulesFor })
+          const gate = await runGate({ gateway: agentRun.gateway, source, model: agentModel, lesson, learned: learnedCases(sources), rulesFor })
           if (meter.refused()) throw new CapReached(capMessage)
           if (!gate.keep) report = { group: group.key, outcome: "dropped", detail: gate.reason, cost: 0, distilled, gate }
           else {
@@ -171,6 +178,7 @@ export function createLearning(options: LearningOptions): Learning {
       report = { group: group.key, outcome: invalid ? "invalid" : "failed", detail: invalid ? `rejected: ${message}` : message, cost: 0 }
     }
     report.cost = meter.spent() - startCost
+    await agentRun.finish({ outcome: report.outcome })
     if (!dry) {
       await store.finishDistilRun(id, {
         finishedAt: clock().toISOString(), outcome: report.outcome as DistilOutcome, lessonId: report.lessonId ?? null, mistakeIds, cost: report.cost, detail: report.detail,
@@ -198,6 +206,7 @@ export function createLearning(options: LearningOptions): Learning {
         await store.startDistilRun({
           id: `dst-${randomUUID()}`, group: "restate", startedAt: clock().toISOString(), finishedAt: clock().toISOString(), outcome: "restated",
           lessonId: null, mistakeIds: restated.map((mistake) => mistake.id), cost, detail: `${restated.length} pending mistake(s) restated`, gate: null,
+          agentRunId: null,
         })
       }
     }

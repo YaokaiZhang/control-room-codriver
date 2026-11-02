@@ -19,6 +19,8 @@ import { createLessonFeeds } from "../lib/engine/lessons"
 import { createPostgresStore } from "../lib/engine/postgres"
 import { createAnthropicGateway } from "../lib/reviewer/anthropic"
 import { createPostgresReviewCache } from "../lib/reviewer/postgres-cache"
+import { createPostgresTraceStore } from "../lib/reviewer/postgres-trace"
+import { createTracedGateway, type TracingGateway } from "../lib/reviewer/trace"
 import { reviewSourceFromDatabase } from "../lib/reviewer/source"
 
 export type SweepOptions = {
@@ -36,6 +38,7 @@ function money(value: number): string {
 export async function sweep(options: SweepOptions): Promise<EngineState | null> {
   const log = options.log ?? console.log
   const client = postgres(options.url, { max: 4, onnotice: () => {} })
+  let traced: TracingGateway | null = null
   try {
     const db = drizzle(client)
     const cache = createPostgresReviewCache(db)
@@ -46,7 +49,8 @@ export async function sweep(options: SweepOptions): Promise<EngineState | null> 
       return null
     }
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
-    const gateway = apiKey ? createAnthropicGateway({ apiKey, timeoutMs: 90_000 }) : null
+    // Traced like the app's (lib/reviewer/trace.ts): each review names the run that wrote it.
+    const gateway = traced = apiKey ? createTracedGateway(createAnthropicGateway({ apiKey, timeoutMs: 90_000 }), createPostgresTraceStore(db)) : null
     const source = await reviewSourceFromDatabase(db)
     const store = createPostgresStore(db)
     const engine = createEngine({
@@ -85,6 +89,7 @@ export async function sweep(options: SweepOptions): Promise<EngineState | null> 
       + `Totals: ${after.reviews.reviewed} reviewed, ${after.reviews.notReviewed} not reviewed yet, ${after.reviews.findings} findings, ${money(after.reviews.cost)} model cost.`)
     return after
   } finally {
+    await traced?.flush()
     await client.end()
   }
 }

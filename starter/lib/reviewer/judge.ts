@@ -10,10 +10,14 @@
 //   raising?) and code makes the verdict: the full prompt flipped on it between runs.
 // - Only "fixed" counts for the gate. Verdicts and reasons are for the gate and the
 //   engineers' trace page, never the operator.
+// - Each verdict is an agent run (trace.ts); in the gate it opens on the distil run's
+//   gateway, so it is that run's child.
 
+import { createHash } from "node:crypto"
 import { CONTACT_TYPE_LABEL } from "./policy"
 import type { ModelGateway } from "./gateway"
 import type { ReviewResult } from "./reviewer"
+import { startRun } from "./trace"
 
 export type Verdict = "repeats" | "fixed" | "unclear"
 export const VERDICTS: Verdict[] = ["repeats", "fixed", "unclear"]
@@ -116,15 +120,19 @@ export function parseNeeded(raw: string | null): { verdict: Verdict; reason: str
 export async function judge(gateway: ModelGateway, model: string, item: JudgeCase, result: ReviewResult, subject: string): Promise<Judged> {
   if (result.status !== "reviewed") return { verdict: "unclear", reason: result.reason, cost: 0 }
   const silent = result.findings.length === 0
+  const system = silent ? JUDGE_SILENT_SYSTEM : JUDGE_SYSTEM
+  const user = JSON.stringify(silent ? { correction: item.correction, reviewer_proposed_then: item.agentSaid } : judgeInput(item, result))
+  const run = startRun(gateway, { job: "judge", subject, model, prompt: system, inputHash: createHash("sha256").update(user).digest("hex") })
   try {
-    const response = await gateway.chat({
+    const response = await run.gateway.chat({
       job: "judge", subject, model, effort: "none", maxTokens: 300,
-      messages: silent
-        ? [{ role: "system", content: JUDGE_SILENT_SYSTEM }, { role: "user", content: JSON.stringify({ correction: item.correction, reviewer_proposed_then: item.agentSaid }) }]
-        : [{ role: "system", content: JUDGE_SYSTEM }, { role: "user", content: JSON.stringify(judgeInput(item, result)) }],
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
     })
-    return { ...(silent ? parseNeeded : parseVerdict)(response.message.content), cost: response.usage.cost }
+    const judged = (silent ? parseNeeded : parseVerdict)(response.message.content)
+    await run.finish({ outcome: judged.verdict })
+    return { ...judged, cost: response.usage.cost }
   } catch (error) {
+    await run.finish({ outcome: "failed" })
     return { verdict: "unclear", reason: `the judge failed: ${error instanceof Error ? error.message : String(error)}`, cost: 0 }
   }
 }

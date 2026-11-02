@@ -5,12 +5,13 @@
 import assert from "node:assert/strict"
 import { before, test } from "node:test"
 import type { CaseFile, RuleResult } from "@/lib/reviewer/case-file"
-import { NO_USAGE, type ChatRequest, type ChatResponse, type TextPart } from "@/lib/reviewer/gateway"
+import { NO_USAGE, type ChatRequest, type ChatResponse, type ModelGateway, type TextPart } from "@/lib/reviewer/gateway"
 import { parseVerdict } from "@/lib/reviewer/judge"
 import { createReviewer, type Reviewed } from "@/lib/reviewer/reviewer"
+import { createMemoryTraceStore, createTracedGateway } from "@/lib/reviewer/trace"
 import { testReviewSource } from "@/lib/reviewer/testing"
 import {
-  checkDistilled, correctionOf, lessonScope, distil, distillerInput, DistilRejected, gateDecision, NO_HARM_TOLERANCE, groupHistory, groupKeys, groupMistakes, learnedCases, qualifies, runGate,
+  checkDistilled, correctionOf, DISTIL_SYSTEM, lessonScope, distil, distillerInput, DistilRejected, gateDecision, NO_HARM_TOLERANCE, groupHistory, groupKeys, groupMistakes, learnedCases, qualifies, runGate,
   type DistillerInput, type DistilRun, type MistakeGroup,
 } from "./distil"
 import { createLearning, spentOn, type LearningOptions } from "./learning"
@@ -122,7 +123,7 @@ async function loopGateway(options: { distilReply?: (input: DistillerInput) => s
   }
 }
 
-function learning(store: EngineStore, gateway: Scripted | null, over: Partial<LearningOptions> = {}) {
+function learning(store: EngineStore, gateway: ModelGateway | null, over: Partial<LearningOptions> = {}) {
   return testReviewSource().then((source) => createLearning({
     store, gateway, source, now: async () => "2026-10-22T12:00:00.000Z", agentModel: "haiku", model: "opus", dailyUsd: 2,
     rulesFor: () => RULES, clock: () => new Date("2026-10-27T12:00:00.000Z"), log: () => {}, ...over,
@@ -164,7 +165,7 @@ test("a group qualifies with 3 usable mistakes on 2 orders across 2 days, and 2 
 })
 
 test("a group's history counts from its last distilled candidate; failed runs and other groups don't count", () => {
-  const run = (over: Partial<DistilRun>): DistilRun => ({ id: "r", group: KEY, startedAt: "2026-10-27T10:00:00.000Z", finishedAt: null, outcome: "dropped", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null, ...over })
+  const run = (over: Partial<DistilRun>): DistilRun => ({ id: "r", group: KEY, startedAt: "2026-10-27T10:00:00.000Z", finishedAt: null, outcome: "dropped", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null, agentRunId: null, ...over })
   const runs = [run({ startedAt: "2026-10-27T09:00:00.000Z", outcome: "candidate", lessonId: "lsn-a" }), run({ startedAt: "2026-10-27T11:00:00.000Z", outcome: "failed" }), run({ group: "other", startedAt: "2026-10-27T12:00:00.000Z" })]
   assert.deepEqual(groupHistory(KEY, runs, [{ id: "lsn-a", status: "rejected" }]), { lastAttemptAt: "2026-10-27T09:00:00.000Z", lastRejected: true })
   assert.deepEqual(groupHistory(KEY, runs, [{ id: "lsn-a", status: "candidate" }]), { lastAttemptAt: "2026-10-27T09:00:00.000Z", lastRejected: false })
@@ -325,6 +326,38 @@ test("a qualifying group is distilled, gated and stored as a candidate with its 
   assert.ok(Math.abs(run.cost - gateway.spent()) < 1e-9, `${run.cost} vs ${gateway.spent()}`)
 })
 
+test("a distil is an agent run that its lessons run names; the gate's reviews and judges run under it, metered", async () => {
+  const store = createMemoryStore()
+  const traces = createMemoryTraceStore()
+  const mistakes = await seeded(store, await qualifying())
+  const scripted = await loopGateway()
+  const loop = await learning(store, createTracedGateway(scripted, traces, { log: () => {} }))
+  loop.consider(mistakes[2])
+  await loop.settled()
+  const [run] = await store.readDistilRuns()
+  assert.equal(run.outcome, "candidate")
+  const agentRun = (await traces.readRun(run.agentRunId!))!
+  assert.deepEqual({ job: agentRun.job, subject: agentRun.subject, model: agentRun.model, outcome: agentRun.outcome, parent: agentRun.parentRunId }, { job: "distil", subject: KEY, model: "opus", outcome: "candidate", parent: null })
+  assert.equal(await traces.readPrompt(agentRun.promptHash!), DISTIL_SYSTEM)
+  assert.deepEqual((await traces.readCalls(agentRun.id)).map((call) => call.turn), [1], "only the distiller's own turn")
+
+  const children = await traces.readRuns({ parentRunId: agentRun.id })
+  const judges = children.filter((child) => child.job === "judge")
+  const reviews = children.filter((child) => child.job === "reviewer")
+  assert.equal(judges.length, 4 * 2, "every learned case judged in every gate run")
+  assert.ok(judges.every((child) => child.model === "haiku" && ["fixed", "repeats", "unclear"].includes(child.outcome)))
+  assert.equal(reviews.length, 4 * (7 + 1))
+  assert.ok(reviews.filter((child) => child.lessonIds.length).length >= 2 * 7, "the runs with the candidate name it")
+  assert.equal(children.length, judges.length + reviews.length)
+  // Every model call is in some run, and the meter saw them all.
+  const runs = await traces.readRuns({})
+  const turns = (await Promise.all(runs.map((row) => traces.readCalls(row.id)))).flat()
+  assert.equal(turns.length, scripted.calls.length)
+  assert.ok(Math.abs(run.cost - scripted.spent()) < 1e-9)
+  // The restatement (none pending here) and nothing else runs outside the distil.
+  assert.deepEqual(runs.filter((row) => row.parentRunId === null).map((row) => row.job), ["distil"])
+})
+
 test("one run at a time, then a cooldown of an hour per group", async () => {
   const store = createMemoryStore()
   const mistakes = await seeded(store, await qualifying())
@@ -481,7 +514,7 @@ test("lessons runs are stored, finished once and kept across reset [postgres]", 
   const db = testDatabase()!
   await clearLearning(db)
   const store = createPostgresStore(db)
-  const run: DistilRun = { id: "dst-1", group: KEY, startedAt: "2026-10-27T12:00:00.000Z", finishedAt: null, outcome: "running", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null }
+  const run: DistilRun = { id: "dst-1", group: KEY, startedAt: "2026-10-27T12:00:00.000Z", finishedAt: null, outcome: "running", lessonId: null, mistakeIds: [], cost: 0, detail: "", gate: null, agentRunId: "run-1" }
   await store.startDistilRun(run)
   await store.startDistilRun({ ...run, detail: "again" })
   await store.finishDistilRun("dst-1", { finishedAt: "2026-10-27T12:05:00.000Z", outcome: "candidate", lessonId: "lsn-a", mistakeIds: ["m-1", "m-2"], cost: 0.42, detail: "kept", gate: TRACE })

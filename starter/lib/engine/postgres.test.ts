@@ -113,6 +113,7 @@ test("agent runs, model calls and prompt texts survive reset: a trace outlives i
   const traces = createPostgresTraceStore(db)
   const gateway = createTracedGateway({ chat: async () => ({ model: "m", finishReason: "stop", usage: NO_USAGE, message: { role: "assistant", content: "ok" } }) }, traces)
   await gateway.chat({ job: "digest", subject: "digest:12:00", model: "m", messages: [{ role: "system", content: "Write the digest." }] })
+  await gateway.flush()
   await createPostgresStore(db).reset()
   const [run] = await traces.readRuns({ subject: "digest:12:00" })
   assert.equal(run.outcome, "ok")
