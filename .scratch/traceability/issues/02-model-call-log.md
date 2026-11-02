@@ -26,3 +26,9 @@ open explicit runs; judge runs set `parent_run_id` to their distil run. Gap 2.
 - Explicit runs: reviewer, distil, judge. Everything else (restate, inbox, plain words, call
   checks and callee, travel, digest prose) gets one-turn runs from `job` / `subject`.
 - Needs `npx drizzle-kit push`: three new tables and `cr_distil_runs.agent_run_id`.
+- Storage: a turn that carries on from the run's previous turn (its messages are that turn's
+  messages, then its reply, then more) stores only the new messages, with
+  `request.messagesFrom` = the index they start at; tools equal to an earlier turn's are left
+  out, with `request.toolsAsTurn` = the turn whose row has them. `rebuildRequest(calls, turn)`
+  in trace.ts gives a turn's full request. Rows from before hold the whole request and read
+  as they are. No schema change.

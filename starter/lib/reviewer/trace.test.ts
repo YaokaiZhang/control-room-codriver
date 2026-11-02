@@ -10,7 +10,7 @@ import { PROMPT_VERSION, SYSTEM_PROMPT } from "./prompt"
 import { createReviewer, type ReviewResult, type Reviewed } from "./reviewer"
 import { createScriptedGateway } from "./scripted"
 import { testReviewSource } from "./testing"
-import { createMemoryTraceStore, createTracedGateway, hashPrompt, interceptGateway, startRun, type TraceStore } from "./trace"
+import { createMemoryTraceStore, createTracedGateway, hashPrompt, interceptGateway, rebuildRequest, startRun, type ModelCallRow, type TraceStore } from "./trace"
 
 const NOW = "2026-10-21T09:00:00.000Z"
 const quiet = { log: () => {} }
@@ -65,7 +65,13 @@ eachTraceStore("a reviewer with tool calls logs every turn in order under one ru
   assert.equal(calls.length, result.turns)
   assert.deepEqual(calls[0].request.messages[0], { role: "system", promptHash: result.promptHash })
   assert.equal(calls[0].request.messages.length, 2)
-  assert.equal(calls[1].request.messages.length, 4, "the second turn carries the tool call and its result")
+  // The second turn stores only what it added after turn 1's messages and reply: the tool result.
+  assert.equal(calls[1].request.messagesFrom, 3)
+  assert.deepEqual(calls[1].request.messages.map((item) => (item as { role: string }).role), ["tool"])
+  const second = rebuildRequest(calls, 2)
+  assert.equal(second.messages.length, 4, "the second turn carried the tool call and its result")
+  assert.deepEqual(second.messages[2], calls[0].response?.message)
+  assert.equal(second.messagesFrom, undefined)
   assert.equal(calls[0].response?.message.tool_calls?.[0].function.name, "get_driver_duties")
   assert.equal(calls[1].response?.message.tool_calls?.[0].function.name, "submit_findings")
   assert.equal(calls[0].request.effort, "medium")
@@ -207,4 +213,61 @@ test("a reply is handed back without waiting for its trace writes; finish and fl
   const [run] = await memory.readRuns({ subject: "card-3" })
   assert.equal(run.outcome, "ok")
   assert.equal((await memory.readCalls(run.id)).length, 1)
+})
+
+const tool = (name: string) => ({ type: "function" as const, function: { name, description: name, parameters: { type: "object" } } })
+
+eachTraceStore("a turn that extends the last one stores only its new messages, and tools only when they changed; the full request rebuilds", async (store) => {
+  let n = 0
+  const inner: ModelGateway = { chat: async () => ({ model: "m", finishReason: "stop", usage: NO_USAGE, message: { role: "assistant", content: `reply ${++n}` } }) }
+  const gateway = createTracedGateway(inner, store, quiet)
+  const run = startRun(gateway, { job: "reviewer", subject: "CD-1", model: "m", prompt: "Review." })
+  const system = { role: "system" as const, content: "Review." }
+  const tools = [tool("a"), tool("b")]
+  const sent: ChatRequest[] = []
+  const send = async (over: Partial<ChatRequest>) => {
+    const req = request({ job: "reviewer", subject: "CD-1", ...over })
+    sent.push(structuredClone(req))
+    return (await run.gateway.chat(req)).message
+  }
+  const r1 = await send({ messages: [system, { role: "user", content: "Case file." }], tools })
+  const r2 = await send({ messages: [system, { role: "user", content: "Case file." }, r1, { role: "user", content: "More." }], tools })
+  // Fewer tools: stored again.
+  await send({ messages: [system, { role: "user", content: "Case file." }, r1, { role: "user", content: "More." }, r2, { role: "user", content: "Submit." }], tools: [tool("b")] })
+  // Not an extension of turn 3 (its reply is missing): everything is stored.
+  await send({ messages: [system, { role: "user", content: "Start over." }], tools: [tool("b")] })
+  await run.finish({ outcome: "ok" })
+
+  const calls = await store.readCalls(run.id!)
+  assert.deepEqual(calls.map((call) => [call.request.messagesFrom, call.request.messages.length, call.request.tools?.length, call.request.toolsAsTurn]), [
+    [undefined, 2, 2, undefined],
+    [3, 1, undefined, 1],
+    [5, 1, 1, undefined],
+    [undefined, 2, undefined, 3],
+  ])
+  const hash = hashPrompt("Review.")
+  for (const [index, call] of calls.entries()) {
+    const full = rebuildRequest(calls, call.turn)
+    const expected = sent[index].messages.map((item) => item.role === "system" ? { role: "system", promptHash: hash } : item)
+    assert.deepEqual(full.messages, expected, `turn ${call.turn}`)
+    assert.deepEqual(full.tools, sent[index].tools, `turn ${call.turn} tools`)
+    assert.equal(full.messagesFrom, undefined)
+    assert.equal(full.toolsAsTurn, undefined)
+  }
+})
+
+test("rows logged before deltas (whole conversation per turn) rebuild as they are; a missing earlier turn is an error", () => {
+  const row = (turn: number, request: ModelCallRow["request"]): ModelCallRow => ({
+    runId: "run-old", turn, at: NOW, latencyMs: 1, request, usage: null, error: null,
+    response: { message: { role: "assistant", content: `reply ${turn}` }, finishReason: "stop", model: "m" },
+  })
+  const tools = [tool("a")]
+  const old = [
+    row(1, { model: "m", messages: [{ role: "user", content: "a" }], tools }),
+    row(2, { model: "m", messages: [{ role: "user", content: "a" }, { role: "assistant", content: "reply 1" }, { role: "user", content: "b" }], tools }),
+  ]
+  assert.deepEqual(rebuildRequest(old, 2), old[1].request)
+  const delta = [row(2, { model: "m", messages: [{ role: "user", content: "b" }], messagesFrom: 2, toolsAsTurn: 1 })]
+  assert.throws(() => rebuildRequest(delta, 2), /turn 1/)
+  assert.throws(() => rebuildRequest(old, 3), /turn 3/)
 })
