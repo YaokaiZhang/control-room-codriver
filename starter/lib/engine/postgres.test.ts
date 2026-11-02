@@ -4,14 +4,17 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { test } from "node:test"
-import { getTableName, sql } from "drizzle-orm"
+import { getTableName, sql, type Table } from "drizzle-orm"
 import type { Bundle } from "@/lib/present/bundle"
 import { createEngine } from "./engine"
 import { addLessonCandidate, decideLesson, readLessons } from "./lessons"
 import { createPostgresStore } from "./postgres"
-import { CACHE_TABLES, ENGINE_TABLES, LEARNING_TABLES } from "./schema"
+import { createPostgresTraceStore } from "@/lib/reviewer/postgres-trace"
+import { createTracedGateway } from "@/lib/reviewer/trace"
+import { NO_USAGE } from "@/lib/reviewer/gateway"
+import { CACHE_TABLES, ENGINE_TABLES, LEARNING_TABLES, TRACE_TABLES } from "./schema"
 import { snapshotFromDatabase } from "./snapshot"
-import { clearLearning, testDatabase, testSnapshot } from "./testing"
+import { clearLearning, clearTraces, testDatabase, testSnapshot } from "./testing"
 
 const skip = process.env.TEST_DATABASE_URL ? false : "set TEST_DATABASE_URL"
 
@@ -99,4 +102,21 @@ test("lessons and the operator's decisions on them survive reset: they are learn
   assert.deepEqual(kept.appliesTo, ["decide"])
   assert.equal(kept.evalBefore, null)
   await clearLearning(db)
+})
+
+test("agent runs, model calls and prompt texts survive reset: a trace outlives its demo take", { skip }, async () => {
+  const names = (tables: readonly Table[]) => tables.map((table) => getTableName(table))
+  for (const name of names(TRACE_TABLES)) assert.ok(![...names(ENGINE_TABLES), ...names(CACHE_TABLES), ...names(LEARNING_TABLES)].includes(name), name)
+
+  const db = testDatabase()!
+  await clearTraces(db)
+  const traces = createPostgresTraceStore(db)
+  const gateway = createTracedGateway({ chat: async () => ({ model: "m", finishReason: "stop", usage: NO_USAGE, message: { role: "assistant", content: "ok" } }) }, traces)
+  await gateway.chat({ job: "digest", subject: "digest:12:00", model: "m", messages: [{ role: "system", content: "Write the digest." }] })
+  await createPostgresStore(db).reset()
+  const [run] = await traces.readRuns({ subject: "digest:12:00" })
+  assert.equal(run.outcome, "ok")
+  assert.equal((await traces.readCalls(run.id)).length, 1)
+  assert.equal(await traces.readPrompt(run.promptHash!), "Write the digest.")
+  await clearTraces(db)
 })

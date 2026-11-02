@@ -149,6 +149,10 @@ An eval case made from a lesson's source mistake: the order's case file as the a
 A small model call in the lessons gate that reads a correction and a new review and answers `repeats`, `fixed` or `unclear`. It does not know whether a lesson was in the prompt. Its verdicts are for the gate and engineers, never shown to the operator.
 _Avoid_: Grader, critic
 
+**Agent run**:
+One piece of work by one agent (a review of an order, a distil, a judge's verdict, a digest's prose), kept for engineers with the exact prompt it sent, the lessons in it, every model turn and what it cost. A model call made outside a run gets a one-turn run of its own. Judge runs and the gate's reviews sit under the distil run that asked for them.
+_Avoid_: Trace (the whole chain), session, job (that is the run's kind)
+
 **Effect event**:
 The append-only record of something committed on an order, layered over the snapshot. A change to the order (a contact confirmed or changed, a window moved, a cost approved) is written only after an operator's yes; the operator's own answers are committed when given. A call result and a reported ETA are written by the agent at once, without a yes, because they are attributed statements (what the person said on the call), not changes to the order. Proposal text is never a fact; an effect event is.
 _Avoid_: Update, change, mutation, operational event (that is the dataset's history)

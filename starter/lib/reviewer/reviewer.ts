@@ -11,6 +11,10 @@
 //
 // With no gateway (no ANTHROPIC_API_KEY) a cached result is still served; anything
 // else comes back as "not reviewed yet" instead of failing.
+//
+// Each review that calls the model is one agent run (trace.ts) with the prompt version,
+// the exact system prompt, the lessons in it and the case file's hash; the result names
+// that run, and a cached result keeps naming it (serving from the cache writes nothing).
 
 import { createHash } from "node:crypto"
 import type { Bundle } from "@/lib/present/bundle"
@@ -20,6 +24,7 @@ import { createMemoryReviewCache, type ReviewCache } from "./cache"
 import { addUsage, NO_USAGE, type ChatMessage, type Effort, type ModelGateway, type ToolCall, type Usage } from "./gateway"
 import { PROMPT_VERSION, SYSTEM_PROMPT } from "./prompt"
 import { findBundle, type ReviewSource } from "./source"
+import { hashPrompt, promptOf, startRun } from "./trace"
 import { READ_TOOL_SPECS, READ_TOOLS, runReadTool, SUBMIT_FINDINGS, SUBMIT_SPEC } from "./tools"
 import { checkFinding, type Finding, type RecordIndex } from "./validate"
 
@@ -57,6 +62,14 @@ export type Reviewed = {
   /** When the model run happened (real time). */
   reviewedAt: string
   cached: boolean
+  // Traceability. Absent on reviews cached before it.
+  /** The agent run that produced this result (cr_agent_runs); null when the gateway was not traced. */
+  runId?: string | null
+  promptVersion?: string
+  /** sha256 of the exact system prompt sent, lessons rendered in (cr_prompt_texts). */
+  promptHash?: string
+  /** The approved lessons in the prompt. */
+  lessonIds?: string[]
 }
 
 export type NotReviewed = {
@@ -191,7 +204,11 @@ export function createReviewer(options: ReviewerOptions): Reviewer {
 
     const index: RecordIndex = new Map(file.records.map((record) => [record.id, record]))
     const ctx = { index, customerId: file.customer.id }
-    const messages: ChatMessage[] = [systemMessage(lessons), { role: "user", content: renderCaseFile(file) }]
+    const system = systemMessage(lessons)
+    const prompt = promptOf([system])!
+    const lessonIds = lessons.map((lesson) => lesson.id)
+    const agentRun = startRun(gateway, { job: "reviewer", subject: file.reference, model, promptVersion: PROMPT_VERSION, prompt, lessonIds, inputHash: hash })
+    const messages: ChatMessage[] = [system, { role: "user", content: renderCaseFile(file) }]
     let usage = NO_USAGE
     let usedTools = 0
     let refusedTools = 0
@@ -206,7 +223,10 @@ export function createReviewer(options: ReviewerOptions): Reviewer {
     const dropped: DroppedFinding[] = []
     let awaitingRepair: DroppedFinding[] = []
 
-    const notReviewed = (reason: string): NotReviewed => ({ status: "not_reviewed", ...base, cost: usage.cost, reason: `${NOT_REVIEWED_YET}: ${reason}` })
+    const notReviewed = async (reason: string): Promise<NotReviewed> => {
+      await agentRun.finish({ outcome: `failed: ${reason}` })
+      return { status: "not_reviewed", ...base, cost: usage.cost, reason: `${NOT_REVIEWED_YET}: ${reason}` }
+    }
 
     /** Checks a submission; returns the tool result text for the model. */
     function submit(args: Record<string, unknown>): string {
@@ -255,7 +275,7 @@ export function createReviewer(options: ReviewerOptions): Reviewer {
     try {
       while (!done && turns < maxTurns) {
         const tools = usedTools >= budget ? [SUBMIT_SPEC] : [...READ_TOOL_SPECS, SUBMIT_SPEC]
-        const response = await gateway.chat({ job: "reviewer", subject: file.reference, model, effort, messages: [...messages], tools, maxTokens: MAX_TOKENS })
+        const response = await agentRun.gateway.chat({ job: "reviewer", subject: file.reference, model, effort, messages: [...messages], tools, maxTokens: MAX_TOKENS })
         turns += 1
         usage = addUsage(usage, response.usage)
         answeredModel = response.model || answeredModel
@@ -297,7 +317,9 @@ export function createReviewer(options: ReviewerOptions): Reviewer {
       status: "reviewed", ...base, summary, findings, dropped,
       toolCalls: usedTools, refusedToolCalls: refusedTools, turns,
       cost: usage.cost, usage, model: answeredModel, reviewedAt: clock().toISOString(), cached: false,
+      runId: agentRun.id, promptVersion: PROMPT_VERSION, promptHash: hashPrompt(prompt), lessonIds,
     }
+    await agentRun.finish({ outcome: "ok" })
     await cache.put(resultKey, result)
     return result
   }

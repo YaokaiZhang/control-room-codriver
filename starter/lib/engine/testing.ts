@@ -14,7 +14,9 @@ import type { ReviewCache } from "@/lib/reviewer/cache"
 import { loadFixtures, SCENARIO_FIXTURE_DIR } from "@/lib/reviewer/fixtures"
 import { GatewayError, NO_USAGE, type ChatRequest, type ModelGateway } from "@/lib/reviewer/gateway"
 import type { LessonFeed } from "@/lib/reviewer/lessons"
+import { createPostgresTraceStore } from "@/lib/reviewer/postgres-trace"
 import { createScriptedGateway } from "@/lib/reviewer/scripted"
+import { createMemoryTraceStore, type TraceStore } from "@/lib/reviewer/trace"
 import { testReviewSource } from "@/lib/reviewer/testing"
 import type { CallOptions } from "./call-runner"
 import type { ProseOptions } from "./digest-prose"
@@ -22,7 +24,7 @@ import { createEngine, type Engine, type Snapshot } from "./engine"
 import { createMemoryStore } from "./memory"
 import type { MistakeOptions } from "./mistakes"
 import { createPostgresStore, type Database } from "./postgres"
-import { LEARNING_TABLES } from "./schema"
+import { LEARNING_TABLES, TRACE_TABLES } from "./schema"
 import type { EngineStore } from "./store"
 
 /** The real dataset, read once per test process. */
@@ -131,6 +133,26 @@ export function testDatabase(): Database | null {
 /** Empties the lesson tables, which reset keeps: a test store starts with nothing learned. */
 export async function clearLearning(db: Database): Promise<void> {
   await db.execute(sql.raw(`TRUNCATE ${LEARNING_TABLES.map((table) => `"${getTableName(table)}"`).join(", ")} RESTART IDENTITY`))
+}
+
+/** Empties the trace tables, which reset keeps. */
+export async function clearTraces(db: Database): Promise<void> {
+  await db.execute(sql.raw(`TRUNCATE ${TRACE_TABLES.map((table) => `"${getTableName(table)}"`).join(", ")} RESTART IDENTITY`))
+}
+
+/**
+ * Registers `name` once per trace store (trace.ts): memory and, with TEST_DATABASE_URL,
+ * Postgres, emptied first.
+ */
+export function eachTraceStore(name: string, body: (store: TraceStore) => Promise<void>): void {
+  for (const kind of ["memory", "postgres"] as const) {
+    test(`${name} [${kind}]`, { skip: kind === "postgres" && !process.env.TEST_DATABASE_URL ? "set TEST_DATABASE_URL" : false }, async () => {
+      if (kind === "memory") return body(createMemoryTraceStore())
+      const db = testDatabase()!
+      await clearTraces(db)
+      await body(createPostgresTraceStore(db))
+    })
+  }
 }
 
 type StoreCase = { name: string; make: () => Promise<EngineStore> | null }

@@ -1,10 +1,13 @@
 // The control room's own tables. ADR 0002: none of them has a foreign key into the
 // starter's tables, so reseeding keeps working, and the snapshot is never edited.
 // Every table is prefixed `cr_` and listed in ENGINE_TABLES (state, which reset truncates),
-// CACHE_TABLES (content-keyed caches, which reset keeps) or LEARNING_TABLES (what the
-// agents learn from, which reset keeps).
+// CACHE_TABLES (content-keyed caches, which reset keeps), LEARNING_TABLES (what the
+// agents learn from, which reset keeps) or TRACE_TABLES (agent runs and model calls,
+// which reset keeps).
 
 import type { GateTrace } from "./distil"
+import type { Usage } from "../reviewer/gateway"
+import type { LoggedRequest, LoggedResponse } from "../reviewer/trace"
 import { bigserial, boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core"
 
 /** One row (id "current") once the demo clock has moved; no row means the clock is at its start. */
@@ -236,3 +239,53 @@ export const distilRuns = pgTable("cr_distil_runs", {
  * neither demo state nor a content cache, and a new demo take should not wipe it.
  */
 export const LEARNING_TABLES = [mistakes, lessons, lessonEvents, distilRuns]
+
+/**
+ * Agent runs (spec .scratch/traceability, lib/reviewer/trace.ts): one row per run of any
+ * agent, written when it starts and finished once. A call made outside a run gets a
+ * one-turn run of its own. `prompt_hash` names the exact system prompt in cr_prompt_texts;
+ * `lesson_ids` the lessons in it. Real time. Prompts hold customer contact data: engineers only.
+ */
+export const agentRuns = pgTable("cr_agent_runs", {
+  seq: bigserial("seq", { mode: "number" }).primaryKey(),
+  id: text("id").notNull().unique(),
+  job: text("job").notNull(),
+  subject: text("subject").notNull(),
+  parentRunId: text("parent_run_id"),
+  promptVersion: text("prompt_version"),
+  promptHash: text("prompt_hash"),
+  model: text("model").notNull(),
+  lessonIds: jsonb("lesson_ids").$type<string[]>().notNull(),
+  inputHash: text("input_hash"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  outcome: text("outcome").notNull(),
+  usage: jsonb("usage").$type<Usage>(),
+  cost: doublePrecision("cost"),
+}, (table) => [
+  index("cr_agent_runs_subject_idx").on(table.subject),
+  index("cr_agent_runs_parent_idx").on(table.parentRunId),
+  index("cr_agent_runs_started_idx").on(table.startedAt),
+])
+
+/** One row per model turn, under its run: the request as the agent sent it (system prompt by hash), the reply or the error. */
+export const modelCalls = pgTable("cr_model_calls", {
+  runId: text("run_id").notNull(),
+  turn: integer("turn").notNull(),
+  at: timestamp("at", { withTimezone: true }).notNull(),
+  latencyMs: integer("latency_ms").notNull(),
+  request: jsonb("request").$type<LoggedRequest>().notNull(),
+  response: jsonb("response").$type<LoggedResponse>(),
+  usage: jsonb("usage").$type<Usage>(),
+  error: text("error"),
+}, (table) => [primaryKey({ columns: [table.runId, table.turn] })])
+
+/** Exact system prompts as sent (lessons rendered in), stored once by sha256. */
+export const promptTexts = pgTable("cr_prompt_texts", {
+  hash: text("hash").primaryKey(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/** What every agent run read and said. Reset keeps these: a trace outlives the demo take it came from. */
+export const TRACE_TABLES = [agentRuns, modelCalls, promptTexts]
