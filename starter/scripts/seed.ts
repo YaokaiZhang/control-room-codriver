@@ -5,6 +5,7 @@ import postgres from "postgres"
 import * as schema from "../lib/schema"
 import { readDataset } from "../lib/snapshot/files"
 import { tablesFromSource } from "../lib/snapshot/tables"
+import { loadReviewSnapshot, readReviewSnapshot } from "../lib/engine/review-snapshot"
 import { sweep } from "./review-sweep"
 
 // The packet ships its records in ../dataset/data. Set DATASET_DIR to seed another folder with the same files.
@@ -43,6 +44,15 @@ async function seed(): Promise<void> {
     await insertBatches(tables.operationalEvents, async (batch) => { await tx.insert(schema.operationalEvents).values(batch) })
     await insertBatches(tables.relatedRecords, async (batch) => { await tx.insert(schema.relatedRecords).values(batch) })
   })
+  // The committed reviews (data/review-snapshot.json): a fresh seed starts reviewed, free.
+  const snapshot = readReviewSnapshot()
+  if (snapshot) {
+    try {
+      console.log(`Loaded ${await loadReviewSnapshot(db, snapshot)} of ${snapshot.rows.length} committed reviews.`)
+    } catch (error) {
+      console.error(`Committed reviews not loaded (${(error as Error).message}). Run \`npm run db:push\` first.`)
+    }
+  }
   console.log(`Seeded ${tables.orders.length} fictional orders and ${[...source.values()].reduce((sum, part) => sum + part.length, 0)} source records.`)
 }
 

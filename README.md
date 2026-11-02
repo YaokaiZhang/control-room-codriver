@@ -27,9 +27,14 @@ npm run dev
 
 Open http://localhost:3000.
 
-The seed does not run the reviewer. With `ANTHROPIC_API_KEY` set, review a few orders with
-`npm run review:sweep -- CD-420516 CD-420437`, or opt in to the full one-time sweep of every order
-(it calls the model on all 100) with `npm run db:seed -- --review`.
+The seed loads the committed reviews in `starter/data/review-snapshot.json`, so all 100 orders
+start reviewed without calling the model. A stored review only matches while the order's records,
+the reviewer's prompt and model, and the approved lessons for that order are unchanged; orders that
+no longer match read "Not reviewed yet". With `ANTHROPIC_API_KEY` set, review those with
+`npm run review:sweep` (or a few: `npm run review:sweep -- CD-420516 CD-420437`).
+
+After changing the reviewer's prompt or model, refresh the snapshot from a freshly seeded database
+with no approved lessons: `npm run review:sweep && npm run review:snapshot`, then commit the file.
 
 For a live demo, run `starter/scripts/start.sh --demo`. It does everything above, then reviews
 the demo orders (only the ones not reviewed yet call the model) and resets the demo clock to 09:00.

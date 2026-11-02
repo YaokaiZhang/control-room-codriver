@@ -15,6 +15,7 @@
     "test": "tsx --test --test-concurrency=1 \"lib/**/*.test.ts\"",
     "review": "tsx scripts/review.ts",
     "review:eval": "tsx scripts/review-cases.ts",
+    "review:snapshot": "tsx scripts/review-snapshot.ts",
     "review:sweep": "NODE_USE_ENV_PROXY=1 tsx scripts/review-sweep.ts",
     "lessons": "NODE_USE_ENV_PROXY=1 tsx scripts/lessons.ts",
     "lessons:judge-eval": "NODE_USE_ENV_PROXY=1 tsx scripts/judge-eval.ts"
