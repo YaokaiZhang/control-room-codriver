@@ -73,6 +73,8 @@ export type OrderReview = {
   reviewedAt: string | null
   /** The time the reviewer read the order as of (stable: the snapshot time). */
   reviewAt: string
+  /** The agent run that produced the review (lib/reviewer/trace.ts); null when not reviewed, untraced, or cached before tracing. */
+  runId: string | null
 }
 
 export type ReviewTotals = {
@@ -284,7 +286,7 @@ export function createReviewLayer(bundles: Bundle[], snapshotAt: string, options
       const cause = failures.get(id) ?? (gateway ? null : "no model key is configured")
       return {
         ...base, status: "not_reviewed", recordsRead: found.recordsRead, summary: null, findings: [], dropped: 0, highlights: [],
-        reason: cause ? `${NOT_REVIEWED_YET}: ${cause}` : NOT_REVIEWED_YET, cost: 0, model: null, reviewedAt: null,
+        reason: cause ? `${NOT_REVIEWED_YET}: ${cause}` : NOT_REVIEWED_YET, cost: 0, model: null, reviewedAt: null, runId: null,
       }
     }
     const records = recordsOf(bundle, inputs)
@@ -303,7 +305,7 @@ export function createReviewLayer(bundles: Bundle[], snapshotAt: string, options
       ...base, status: "reviewed", recordsRead: found.recordsRead, summary: found.summary || null, findings,
       dropped: found.dropped.length,
       highlights: [...new Set(findings.flatMap((finding) => finding.cited.map((cited) => cited.recordId)))],
-      reason: null, cost: found.usage.cost, model: found.model, reviewedAt: found.reviewedAt,
+      reason: null, cost: found.usage.cost, model: found.model, reviewedAt: found.reviewedAt, runId: found.runId ?? null,
     }
   }
 

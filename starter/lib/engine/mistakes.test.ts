@@ -54,7 +54,7 @@ function mistake(overrides: Partial<Mistake> = {}): Mistake {
     operator: "operator", promptVersion: "v", model: "m", kind: "dismissed", tags: ["contact:driver", "proposal:call"],
     input: null, agentOutput: { proposal: { title: "Ask the driver", script: "Is the car ready at Calverona Auto?" } },
     operatorNote: "Already sorted by phone", editDiff: null, validatorReason: null, restatement: null,
-    status: "pending", unusableReason: null, caseFile: null, ...overrides,
+    status: "pending", unusableReason: null, caseFile: null, runId: null, findingId: null, ...overrides,
   }
 }
 
@@ -66,7 +66,7 @@ function stores(): { name: string; store: EngineStore }[] {
 
 test("the store keeps a mistake once per id, settles it once, and keeps it across reset", async () => {
   for (const { name, store } of stores()) {
-    const first = mistake({ caseFile: { orderId: "ord-test", reference: "CD-1", now: "2026-10-21T09:00:00.000Z", nowLocal: null, zone: null, customer: { id: "c", name: "C" }, rules: [], records: [] } })
+    const first = mistake({ runId: "run-test", findingId: "f-test", caseFile: { orderId: "ord-test", reference: "CD-1", now: "2026-10-21T09:00:00.000Z", nowLocal: null, zone: null, customer: { id: "c", name: "C" }, rules: [], records: [] } })
     const edit = mistake({ kind: "edited", operatorNote: null, editDiff: { before: "a", after: "b" }, status: "usable" })
     await store.appendMistakes([first, edit])
     await store.appendMistakes([{ ...first, operatorNote: "changed" }])

@@ -292,7 +292,7 @@ test("a lesson's sources show the operator's note, the edit or the validator's r
   const base = {
     agent: "reviewer" as const, at: "2026-10-21T08:00:00.000Z", recordedAt: "2026-10-21T08:00:00.000Z", operator: "operator",
     promptVersion: "v", model: "m", tags: [], input: null, agentOutput: null, operatorNote: null, editDiff: null,
-    validatorReason: null, restatement: null, status: "usable" as const, unusableReason: null, caseFile: null,
+    validatorReason: null, restatement: null, status: "usable" as const, unusableReason: null, caseFile: null, runId: null, findingId: null,
   }
   await store.appendMistakes([
     { ...base, id: "m-1", orderId: "ord-1", kind: "dismissed", operatorNote: "The site holds the keys", caseFile: { reference: "CD-420001" } as never },

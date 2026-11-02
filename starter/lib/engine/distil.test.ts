@@ -44,7 +44,7 @@ function mistake(over: Partial<Mistake> = {}): Mistake {
       proposal: { title: TITLE, script: "Is Celia Hollowmere authorised to sign?", policyRow: "customer-side", contact: { name: "Calverona Auto", type: "paying_customer", typeLabel: "Paying customer", role: "customer", recordId: "conv-x0eed829e1b54984f" } },
       finding: { title: TITLE, cited: [{ recordId: "msg-x47456eacbe1e0e07", role: "conflict" }, { recordId: "msg-x0049fe6fc2fd0b0e", role: "conflict" }, { recordId: "conv-x0eed829e1b54984f", role: "contact" }], ask: { role: "customer", contactRecordId: "conv-x0eed829e1b54984f" } },
     },
-    operatorNote: NOTE, editDiff: null, validatorReason: null, restatement: RESTATED, status: "usable", unusableReason: null, caseFile: null, ...over,
+    operatorNote: NOTE, editDiff: null, validatorReason: null, restatement: RESTATED, status: "usable", unusableReason: null, caseFile: null, runId: null, findingId: null, ...over,
   }
 }
 

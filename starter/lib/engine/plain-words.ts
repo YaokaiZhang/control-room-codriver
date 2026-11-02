@@ -140,6 +140,8 @@ export function createPlainWords(options: PlainOptions): PlainWordsService {
       promptVersion: PLAIN_VERSION, model: by, kind: "rejected", tags: [`card:${item.kind}`],
       input: { kind: item.kind, headline: item.situation.headline, body: item.situation.body }, agentOutput: raw,
       operatorNote: null, editDiff: null, validatorReason: reason, restatement: null, status: "usable", unusableReason: null, caseFile: null,
+      // A batch's calls get one-turn runs whose ids the gateway does not hand back: not known here.
+      runId: null, findingId: null,
     })
   }
 

@@ -53,6 +53,10 @@ export type Mistake = {
   unusableReason: string | null
   /** The order's case file as the reviewer read it, so the mistake can become an eval case. */
   caseFile: CaseFile | null
+  /** The agent run that made what was overridden (spec .scratch/traceability); null when untraced or not known. */
+  runId: string | null
+  /** A reviewer proposal's finding; null otherwise. */
+  findingId: string | null
 }
 
 export type Restated = Pick<Mistake, "restatement" | "status" | "unusableReason">

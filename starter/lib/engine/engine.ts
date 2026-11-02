@@ -693,6 +693,7 @@ export function createEngine({ snapshot, store, reviews: reviewOptions, briefing
     const { status: _s, waitingOn: _w, onApprove: _o, instructions: _i, answer: _a, history: _h, ...said } = proposal
     const mistake: Mistake = {
       id: `rv-${randomUUID()}`, agent: "reviewer", orderId: proposal.orderId, at: await clock(), recordedAt: new Date().toISOString(),
+      runId: proposal.runId ?? null, findingId: proposal.findingId,
       operator: "operator", promptVersion: PROMPT_VERSION, model: review?.model ?? null, kind: override.kind,
       tags: [...new Set([...failing, `policy:${proposal.policyRow}`, `contact:${proposal.contact.type}`, `proposal:${proposal.kind}`])].sort(),
       input: null, agentOutput: { proposal: said, finding: review?.findings.find((finding) => finding.id === proposal.findingId) ?? null },
@@ -713,13 +714,17 @@ export function createEngine({ snapshot, store, reviews: reviewOptions, briefing
     throw new Error(`No proposal ${proposalId}`)
   }
 
-  /** A stored event; the first one for a finding's proposal keeps a copy of its draft (see proposals.ts). */
+  /**
+   * A stored event; the first one for a finding's proposal keeps a copy of its draft (see
+   * proposals.ts). Every event on a finding's proposal names the finding and its review run.
+   */
   async function eventFor(proposal: Proposal, kind: StoredProposalEvent["kind"], text: string, data: StoredProposalEvent["data"] = null): Promise<StoredProposalEvent> {
     const stored = (await store.readProposalEvents()).some((event) => event.proposalId === proposal.id)
     const draft = stored ? undefined : toDraft(proposal)
+    const chain = proposal.findingId !== null ? { runId: proposal.runId ?? null, findingId: proposal.findingId } : null
     return {
       proposalId: proposal.id, orderId: proposal.orderId, at: await clock(), by: "operator", kind, text,
-      data: draft || data ? { ...(data ?? {}), ...(draft ? { draft } : {}) } : null,
+      data: draft || data || chain ? { ...(data ?? {}), ...(chain ?? {}), ...(draft ? { draft } : {}) } : null,
     }
   }
 

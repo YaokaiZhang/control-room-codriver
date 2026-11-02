@@ -184,6 +184,9 @@ export const mistakes = pgTable("cr_mistakes", {
   status: text("status").notNull(),
   unusableReason: text("unusable_reason"),
   caseFile: jsonb("case_file").$type<Record<string, unknown>>(),
+  /** The agent run behind what was overridden and the reviewer finding (spec .scratch/traceability); null for rows from before. */
+  runId: text("run_id"),
+  findingId: text("finding_id"),
 }, (table) => [index("cr_mistakes_agent_idx").on(table.agent)])
 
 /**

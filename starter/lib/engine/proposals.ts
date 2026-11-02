@@ -3,6 +3,8 @@
 // agent acts alone, needs a yes, or may only propose.
 //
 // - Every reviewer finding becomes one proposal (id "p-" + the finding's stable id).
+//   It names the review run it was drafted from (`runId`, spec .scratch/traceability),
+//   and every stored event on it records that run and the finding in `data`.
 //   Its kind follows the contact type: a site or driver -> a routine `call` (acts
 //   alone, so it starts approved by the policy), the operator -> an
 //   `operator_question` (acts alone, waits for the operator), the customer side ->
@@ -76,6 +78,8 @@ export type ProposalDraft = {
   effect?: EffectSpec | null
   /** Where the proposal came from, e.g. "reviewer" or a call id. */
   source: string
+  /** A finding's proposal: the agent run of the review it was drafted from (null untraced; absent on drafts stored before tracing). */
+  runId?: string | null
   proposedAt: string
 }
 
@@ -103,8 +107,11 @@ export type StoredProposalEvent = {
   by: Actor
   kind: ProposalEventKind
   text: string
-  /** `draft` on a proposal's first stored event; `script` on an edit; `title` on an instruction; `answer`, `question` and `from` on an answer. */
-  data: { draft?: ProposalDraft; script?: string; title?: string; answer?: string; question?: string; from?: string } | null
+  /**
+   * `draft` on a proposal's first stored event; `script` on an edit; `title` on an instruction; `answer`, `question` and `from` on an answer;
+   * `runId` (null untraced) and `findingId` on every event of a finding's proposal (spec .scratch/traceability).
+   */
+  data: { draft?: ProposalDraft; script?: string; title?: string; answer?: string; question?: string; from?: string; runId?: string | null; findingId?: string } | null
 }
 
 /** A finding the agent cannot act on: no contact on record (listed as couldn't check). */
@@ -166,8 +173,8 @@ function actionText(kind: ProposalKind, contact: ProposalContact): string {
   return "Change the order."
 }
 
-/** A finding as the proposal the agent drafts, or why it cannot become one. */
-export function draftFromFinding(bundle: Bundle, finding: ReviewFinding, proposedAt: string): ProposalDraft | Unreachable {
+/** A finding as the proposal the agent drafts, or why it cannot become one. `runId`: the run of the review that raised it. */
+export function draftFromFinding(bundle: Bundle, finding: ReviewFinding, proposedAt: string, runId: string | null = null): ProposalDraft | Unreachable {
   // The records decide the type: a contact they show on the customer side is never called,
   // whatever the finding says, and neither is a fallback contact that lands there.
   let type = customerSideOf(bundle, finding.ask.contactRecordId) ?? finding.ask.contactType
@@ -191,7 +198,7 @@ export function draftFromFinding(bundle: Bundle, finding: ReviewFinding, propose
   return {
     id: proposalIdFor(finding.id), orderId: bundle.order.id, reference: bundle.order.reference, kind, findingId: finding.id,
     title: finding.title, action: actionText(kind, contact), script: finding.question, why: finding.why, evidence: finding.cited,
-    contact, whoPays: finding.whoPays, policyRow: row.id, decision: row.decision, change: null, source: "reviewer", proposedAt,
+    contact, whoPays: finding.whoPays, policyRow: row.id, decision: row.decision, change: null, source: "reviewer", runId, proposedAt,
   }
 }
 
@@ -339,7 +346,7 @@ export function proposalsFor(bundle: Bundle, review: OrderReview, stored: Stored
   const current = new Set<string>()
   if (review.status === "reviewed") {
     for (const finding of review.findings) {
-      const draft = draftFromFinding(bundle, finding, review.reviewAt)
+      const draft = draftFromFinding(bundle, finding, review.reviewAt, review.runId)
       if ("reason" in draft) { unreachable.push(draft); continue }
       if (drafts.has(draft.id)) continue
       drafts.set(draft.id, draft)
