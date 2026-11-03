@@ -51,7 +51,7 @@ eachStore("approving a change writes an effect event that the order view applies
   // The history lists it after the approval, with who approved it.
   const kinds = order.history.map((entry) => entry.kind)
   assert.ok(kinds.indexOf("effect") > kinds.indexOf("approved"))
-  assert.match(order.history.find((entry) => entry.kind === "effect")!.text, /contact confirmed/i)
+  assert.match(order.history.find((entry) => entry.kind === "effect")!.text, /contact .*confirmed/i)
 
   const details = await overlaidRow(engine, ORDER_437, "order_endpoint_details", DELIVERY_437)
   assert.equal(details.contact_status, "CONFIRMED")
@@ -87,7 +87,8 @@ for (const { effect, collection, id, check } of SEVEN) {
     assert.equal(order.effects[0].type, effect.type)
     const entry = order.history.find((row) => row.kind === "effect")!
     assert.equal(entry.by, "operator")
-    assert.match(entry.text, /Committed by the operator/)
+    // The card shows who committed it; the line says only what changed, without record ids.
+    assert.doesNotMatch(entry.text, /Committed by|-x[0-9a-f]{8,}/)
     const bundle = await engine.overlaid(engine.bundle(ORDER_437)!)
     const records = bundle.related[collection] ?? []
     const row = id ? records.find((item) => item.id === id) : records.find((item) => item.id === order.effects[0].id)
@@ -349,7 +350,7 @@ eachStore("closing an open record: the operator accepts the proof, the overlay m
   const [effect] = order.effects
   assert.equal(effect.type, "record_closed")
   assert.equal(effect.by, "operator")
-  assert.match(effect.text, /proof submitted proof-x01adc3c829defb21 accepted/)
+  assert.equal(effect.text, "Pickup photos accepted")
   assert.equal(order.rules.find((rule) => rule.id === "CLOSE")!.outcome, "pass")
   assert.notEqual(order.group, "needs_action")
 

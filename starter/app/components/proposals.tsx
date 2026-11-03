@@ -53,11 +53,36 @@ export function contactName(proposal: Proposal): string {
   return proposal.contact.name.split(",")[0]
 }
 
+/**
+ * A proposal history line in plain words. Lines stored earlier name the call id
+ * ("Call result (call-…): …") or quote the whole policy row ("Acts alone under site-routine: …").
+ */
+export function proposalEventText(text: string): string {
+  const call = /^Call result \([^)]*\): /.exec(text)
+  if (call) return `Answer: ${text.slice(call[0].length)}`
+  const rule = /^Acts alone under ([a-z-]+): /.exec(text)
+  if (rule) return `Allowed by rule: ${RULE_WORDS[rule[1]] ?? rule[1].replace(/-/g, " ")}`
+  return text
+}
+
+const RULE_WORDS: Record<string, string> = {
+  "site-routine": "routine site call", "driver-routine": "routine driver call", "operator-question": "question to the operator", "pickup-readiness": "pickup-readiness call",
+}
+
+const RULE_PREFIX = "Allowed by rule: "
+
+/** The line, with the rule it names linked to the Rules page. */
+export function ProposalEventText({ text, policyRow }: { text: string; policyRow: string }) {
+  const plain = proposalEventText(text)
+  if (!plain.startsWith(RULE_PREFIX)) return <>{plain}</>
+  return <>{RULE_PREFIX}<Link href={`/rules#${policyRow}`}>{plain.slice(RULE_PREFIX.length)}</Link></>
+}
+
 function History({ proposal }: { proposal: Proposal }) {
   return <ol className="proposal-history">{proposal.history.map((event, i) => <li key={i}>
-    <span className="proposal-history-at">{fmtDateTime(event.at, null, false)}</span>
+    <span className="proposal-history-at">{fmtDateTime(event.at)}</span>
     <span className="proposal-history-by">{BY_LABEL[event.by] ?? event.by} · {event.kind}</span>
-    <span className="proposal-history-text">{event.text}</span>
+    <span className="proposal-history-text"><ProposalEventText text={event.text} policyRow={proposal.policyRow} /></span>
   </li>)}</ol>
 }
 

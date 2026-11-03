@@ -11,6 +11,7 @@ import { RecordsPanel } from "./record/records"
 import { TravelPlanSection } from "./travel-plan"
 import { ActivitySection, ConversationsSection, DecisionsSection, EvidenceSection, RouteSection } from "./record/sections"
 import { OpenItems } from "./ui"
+import { withPublication } from "@/lib/present/market"
 
 export type Detail = { order: { id: string; reference: string }; view: RecordView; checks: OrderChecks | null }
 
@@ -33,7 +34,8 @@ function useOpenLinkedSection() {
 }
 
 export function OrderPane({ detail }: { detail: Detail }) {
-  const { view, checks } = detail
+  const { checks } = detail
+  const view = withPublication(detail.view, checks?.publication)
   useOpenLinkedSection()
   const code = checks ? situationFor(checks) : null
   const situation = code && applyPlain(code, checks?.plain)

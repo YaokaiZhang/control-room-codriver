@@ -21,7 +21,7 @@ export function OrderFiles({ orderId }: { orderId: string }) {
       .catch(() => { if (!controller.signal.aborted) setFailed(true) })
     return () => controller.abort()
   }, [orderId])
-  if (failed) return <p className="empty">Sample files are unavailable. Check that the local object store is running and seeded.</p>
+  if (failed) return <p className="empty">Files can't be shown right now.</p>
   if (!files?.length) return null
   return <div className="files">{files.map((file) => <a key={file.id} href={file.url} target="_blank" rel="noopener noreferrer" className="file" title={file.evidence_note ?? undefined}>
     <span className="file-thumb">{file.content_type === "image/jpeg"

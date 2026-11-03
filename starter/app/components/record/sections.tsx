@@ -10,6 +10,8 @@ import { ActorName, Empty, OrderLink, OrderLinks, Pill, Range, SectionHead, When
 import { CitedTag, recordAnchor, useCited } from "../review"
 import { OrderFiles } from "./files"
 
+const files = (count: number) => `${count} ${count === 1 ? "file" : "files"}`
+
 /* ── Route ──────────────────────────────────────────────────────────────── */
 
 export function RouteSection({ view }: { view: RecordView }) {
@@ -92,7 +94,7 @@ export function EvidenceSection({ view }: { view: RecordView }) {
     <SectionHead title="Evidence" count={total} />
     {total === 0 && <Empty>None yet</Empty>}
     {total > 0 && <div className="evidence">
-      {proofs.map((proof) => <Pill key={proof.id} tone={proof.tone} dot>{proof.kindLabel} · {proof.statusLabel.toLowerCase()}{proof.fileCount ? ` · ${proof.fileCount} files` : ""}</Pill>)}
+      {proofs.map((proof) => <Pill key={proof.id} tone={proof.tone} dot>{proof.kindLabel} · {proof.statusLabel.toLowerCase()}{proof.fileCount ? ` · ${files(proof.fileCount)}` : ""}</Pill>)}
       {documents.map((document) => <Pill key={document.id} tone={document.tone} dot>{document.kindLabel}{document.medium ? ` (${document.medium})` : ""} · {document.statusLabel.toLowerCase()}</Pill>)}
       {custody.assets.map((asset) => <Pill key={asset.id} tone={asset.nextAction ? "warn" : "neutral"} dot>{asset.kindLabel} · holder {asset.holder}</Pill>)}
     </div>}
@@ -159,7 +161,7 @@ export function ActivitySection({ view }: { view: RecordView }) {
   const events = view.history.flatMap((day) => day.events)
   const shown = all ? events : events.slice(0, 6)
   return <section className="sec" id="history">
-    <SectionHead title="Activity" count={view.historyTotal} />
+    <SectionHead title="Activity" count={view.historyTotal} note={events.length ? "times in UTC" : null} />
     {events.length === 0 && <Empty>No events recorded.</Empty>}
     <div className="events">{shown.map((event) => <div className="event" key={event.id}>
       <time dateTime={event.at} title={fmtDateTime(event.at)}>{fmtDay(event.at)} {fmtClock(event.at)}</time>
@@ -226,7 +228,7 @@ function StepView({ step, live, last }: { step: JourneyStep; live: boolean; last
       {step.site?.releaseRule && <p className="step-instruction">{step.site.releaseRule}</p>}
       {step.claims.length > 0 && <div className="step-notes">{step.claims.map((claim) => <p key={claim.id}><Pill tone={claim.tone}>{claim.statusLabel}</Pill> {claim.claim}{claim.source ? ` (${claim.source})` : ""}</p>)}</div>}
       {step.notes.length > 0 && <div className="step-notes">{step.notes.map((note) => <p key={note}>{note}</p>)}</div>}
-      {step.proofs.length > 0 && <div className="step-proofs">{step.proofs.map((proof) => <Pill key={proof.id} tone={proof.tone} dot>{proof.kindLabel} · {proof.statusLabel.toLowerCase()}{proof.fileCount ? ` · ${proof.fileCount} files` : ""}</Pill>)}</div>}
+      {step.proofs.length > 0 && <div className="step-proofs">{step.proofs.map((proof) => <Pill key={proof.id} tone={proof.tone} dot>{proof.kindLabel} · {proof.statusLabel.toLowerCase()}{proof.fileCount ? ` · ${files(proof.fileCount)}` : ""}</Pill>)}</div>}
     </div>
   </div>
 }
@@ -260,11 +262,11 @@ export function EvidenceDetails({ view }: { view: RecordView }) {
   return <div>
     {proofs.length > 0 && <><p className="sub">Proofs</p><div className="rows">{proofs.map((proof) => <div className="row" key={proof.id}>
       <div className="row-main"><div className="row-title">{proof.kindLabel} <Pill tone={proof.tone}>{proof.statusLabel}</Pill></div>
-        <div className="row-sub">{proof.pointLabel ? `${proof.pointLabel} · ` : ""}{proof.required ? "required" : "optional"}{proof.fileCount ? ` · ${proof.fileCount} files` : " · no files"}{proof.submittedAt ? ` · submitted ${fmtDateTime(proof.submittedAt)}` : " · nothing submitted"}{proof.reviewedAt ? ` · reviewed ${fmtDateTime(proof.reviewedAt)}` : ""}{proof.note ? ` · ${proof.note}` : ""}</div></div>
+        <div className="row-sub">{proof.pointLabel ? `${proof.pointLabel} · ` : ""}{proof.required ? "required" : "optional"}{proof.fileCount ? ` · ${files(proof.fileCount)}` : " · no files"}{proof.submittedAt ? ` · submitted ${fmtDateTime(proof.submittedAt)}` : " · nothing submitted"}{proof.reviewedAt ? ` · reviewed ${fmtDateTime(proof.reviewedAt)}` : ""}{proof.note ? ` · ${proof.note}` : ""}</div></div>
     </div>)}</div></>}
     {documents.length > 0 && <><p className="sub">Documents</p><div className="rows">{documents.map((document) => <div className="row" key={document.id}>
       <div className="row-main"><div className="row-title">{document.kindLabel}{document.medium ? ` (${document.medium})` : ""} <Pill tone={document.tone}>{document.statusLabel}</Pill></div>
-        <div className="row-sub">{document.required ? "required" : "optional"}{document.signatureScope ? ` · signatures: ${document.signatureScope}` : ""}{document.fileCount ? ` · ${document.fileCount} files` : " · no file"}{document.updatedAt ? ` · updated ${fmtDateTime(document.updatedAt)}` : ""}{document.note ? ` · ${document.note}` : ""}</div></div>
+        <div className="row-sub">{document.required ? "required" : "optional"}{document.signatureScope ? ` · signatures: ${document.signatureScope}` : ""}{document.fileCount ? ` · ${files(document.fileCount)}` : " · no file"}{document.updatedAt ? ` · updated ${fmtDateTime(document.updatedAt)}` : ""}{document.note ? ` · ${document.note}` : ""}</div></div>
     </div>)}</div></>}
     {custody.assets.length > 0 && <><p className="sub">Keys and papers</p><div className="rows">{custody.assets.map((asset) => <div className="row" key={asset.id}>
       <div className="row-main"><div className="row-title">{asset.label}</div>

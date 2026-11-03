@@ -33,6 +33,8 @@
 import { createHash } from "node:crypto"
 import { rows, str, type Bundle, type RelatedRow } from "@/lib/present/bundle"
 import { CLOSING, CLOSING_FIELDS, isClosable, type ClosableCollection } from "@/lib/present/closing"
+import { label, labelIn } from "@/lib/present/labels"
+import { fmtDateTime, fmtMoney, fmtRange } from "@/lib/present/time"
 import type { Row } from "@/lib/present/types"
 import type { Actor } from "./proposals"
 
@@ -125,11 +127,10 @@ export type EffectEvent = EffectInput & {
   supersedes: string[]
   /** Demo-clock time it was committed. */
   at: string
-  /** One line for the history: what changed and who approved it. */
+  /** One line for the history: what changed, in plain words (the card shows the kind and who committed it). */
   text: string
 }
 
-const BY_LABEL: Record<Actor, string> = { operator: "the operator", agent: "the agent", policy: "the approval policy" }
 
 function shortHash(...parts: string[]): string {
   return createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 12)
@@ -206,9 +207,59 @@ export function closeEffect(bundle: Bundle, collection: string, recordId: string
   return { type: "record_closed", collection, recordId, label: `${what}${status}`, outcome: kind.done(found.details, found.status) }
 }
 
-/** The history line: the label, what changed, and who approved it. */
+/** A closed record in plain words, by what it is rather than its id: "Pickup photos accepted". */
+function closedText(bundle: Bundle, effect: Extract<Effect, { type: "record_closed" }>): string {
+  const found = isClosable(effect.collection) ? closableRow(bundle, effect.collection, effect.recordId) : null
+  const d = found?.details ?? {}
+  const kind = label(str(d.kind))
+  switch (effect.collection) {
+    case "proofs": return `${kind || "Proof"} ${effect.outcome}`
+    case "documents": return `${kind || "Document"} ${effect.outcome}`
+    case "endpoint_claims": return `Claim about the ${labelIn(str(d.field)) || "handover"} ${effect.outcome}`
+    case "alerts": {
+      const alert = bundle.alerts.find((row) => row.id === effect.recordId)
+      return `${alert ? `${label(alert.signal)} alert` : "Alert"} ${effect.outcome}`
+    }
+    case "work_items": return `${kind ? `${kind} work item` : "Work item"} ${effect.outcome}`
+    case "incidents": return `${kind ? `${kind} incident` : "Incident"} ${effect.outcome}`
+    case "agent_proposals": return `Agent proposal ${effect.outcome}`
+    case "custody_assets": return `${str(d.label) ?? (kind || "Custody")} ${effect.outcome}`
+    case "work_assignments": return `Driver assignment ${effect.outcome}`
+    case "conversations": return `Conversation ${effect.outcome}`
+  }
+  return `${effect.label} ${effect.outcome}`
+}
+
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/**
+ * The history line on the order page: what changed, in plain words. The card already shows
+ * the kind of change and who committed it, so neither is repeated, and no record ids.
+ * (The reviewer reads `describeEffect` through the event's record, not this line.)
+ */
 export function effectText(bundle: Bundle, input: EffectInput): string {
-  return `${EFFECT_LABEL[input.type]}: ${describeEffect(bundle, input)}. Committed by ${BY_LABEL[input.by]}.`
+  switch (input.type) {
+    case "record_closed": return closedText(bundle, input)
+    case "cost_approved": {
+      if (input.expenseId) {
+        const row = rowOf(bundle, "expenses", input.expenseId)
+        return `${label(str(row?.details.kind)) || "Cost"} claim approved`
+      }
+      const amount = fmtMoney(input.amountCents ?? 0, input.currency ?? "EUR")
+      return `Cost line approved: ${amount}${input.kind ? ` for ${labelIn(input.kind)}` : ""}`
+    }
+    case "operator_answer_recorded": return `Answered: ${quoted(input.answer)}`
+    case "window_changed": {
+      const row = rowOf(bundle, "time_windows", input.windowId)
+      const what = row?.details.purpose === "SELECTED_PICKUP_SLOT" ? "Pickup slot" : "Delivery promise"
+      return `${what} moved to ${fmtRange(input.startAt, input.endAt, str(row?.details.timezone))} (asked by ${input.statedBy})`
+    }
+    case "eta_reported": {
+      const promise = rows(bundle, "time_windows").find((row) => row.details.purpose === "CUSTOMER_DELIVERY_PROMISE" && row.details.is_selected !== false)
+      return `${input.statedBy} gave a new ETA: ${fmtDateTime(input.etaAt, str(promise?.details.timezone))}`
+    }
+    default: return capital(describeEffect(bundle, input))
+  }
 }
 
 /** Refuses an effect whose target record is not on the order, or whose text is empty. */

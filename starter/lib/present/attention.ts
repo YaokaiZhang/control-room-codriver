@@ -213,15 +213,16 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
     const owner = dir.title(alert.details.owner)
     if (alert.status === "OPEN") {
       items.push({
-        kind: "alert", tone: severe ? "danger" : "warn", title: `Open alert: ${label(alert.signal)}`, short: owner ? `${label(alert.signal)} · ${owner}` : label(alert.signal), detail: alert.summary,
+        kind: "alert", tone: severe ? "danger" : "warn", title: label(alert.signal), short: owner ? `${label(alert.signal)} · ${owner}` : label(alert.signal), detail: alert.summary,
         owner, at: alert.triggeredAt, atLabel: "raised", section: "alerts", recordId: alert.id,
       })
     } else if (alert.status === "ACKNOWLEDGED") {
       const at = str(alert.details.acknowledged_at) ?? alert.triggeredAt
       items.push({
-        kind: "owned_alert", tone: "neutral", title: `Owned alert: ${label(alert.signal)}`, short: `${label(alert.signal)} · owned by ${owner ?? "no one recorded"}`,
-        detail: `${alert.summary} Acknowledged is not resolved.`, owner: owner ?? "owner not recorded",
-        at, atLabel: "acknowledged", section: "alerts", recordId: alert.id,
+        kind: "owned_alert", tone: "neutral", title: label(alert.signal), short: `${label(alert.signal)} · owned by ${owner ?? "no one recorded"}`,
+        // Acknowledged means someone owns it, not that it is resolved.
+        detail: alert.summary, owner: owner ? `Acknowledged by ${owner}, still open` : "Acknowledged, still open; no owner recorded",
+        at, atLabel: "since", section: "alerts", recordId: alert.id,
       })
     }
   }
@@ -264,10 +265,10 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
     const summary = str(row.details.summary)
     const execution = obj(row.details.execution)
     if (status === "PENDING_REVIEW") {
-      items.push({ kind: "proposal", tone: "accent", title: "Agent proposal awaiting review", short: "Agent proposal awaiting review", detail: summary, owner: null, at: str(row.details.created_at), atLabel: "proposed", section: "decisions", recordId: row.id })
+      items.push({ kind: "proposal", tone: "accent", title: "Proposal waiting for review", short: "Proposal waiting for review", detail: summary, owner: null, at: str(row.details.created_at), atLabel: "proposed", section: "decisions", recordId: row.id })
     } else if (status === "APPROVED_AWAITING_EXECUTION") {
       const reviewer = dir.title(obj(row.details.review)?.reviewer_id)
-      items.push({ kind: "proposal", tone: "accent", title: "Approved proposal not yet executed", short: "Approved proposal not executed", detail: summary, owner: reviewer, at: str(obj(row.details.review)?.reviewed_at) ?? str(row.details.created_at), atLabel: "approved", section: "decisions", recordId: row.id })
+      items.push({ kind: "proposal", tone: "accent", title: "Approved, not carried out yet", short: "Approved, not carried out yet", detail: summary, owner: reviewer, at: str(obj(row.details.review)?.reviewed_at) ?? str(row.details.created_at), atLabel: "approved", section: "decisions", recordId: row.id })
     } else if (status === "FAILED") {
       items.push({ kind: "proposal", tone: "danger", title: "Agent action failed", short: "Agent action failed", detail: str(execution?.error) ?? summary, owner: null, at: str(execution?.attempted_at), atLabel: "attempted", section: "decisions", recordId: row.id })
     }
@@ -289,7 +290,7 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
       })
     } else {
       items.push({
-        kind: "conversation", tone: "neutral", title: `Open conversation: ${labelIn(thread.category)}`, short: counterparty ? `Open thread with ${counterparty.name}: ${labelIn(thread.category)}` : `Open ${labelIn(thread.channel)}: ${labelIn(thread.category)}`,
+        kind: "conversation", tone: "neutral", title: label(thread.category), short: counterparty ? `Open thread with ${counterparty.name}: ${labelIn(thread.category)}` : `Open ${labelIn(thread.channel)}: ${labelIn(thread.category)}`,
         detail: `${label(thread.channel)}${withWhom}`, owner,
         at: thread.updatedAt, atLabel: "last message", section: "conversations", recordId: thread.id,
       })
@@ -314,10 +315,10 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
       const contact = str(detail.details.contact_status)
       const access = str(detail.details.access_status)
       if (contact === "UNCONFIRMED" || access === "NEEDS_VERIFICATION") {
-        const source = str(detail.details.last_confirmed_source)
+        const gaps = [contact === "UNCONFIRMED" ? "contact not confirmed" : null, access === "NEEDS_VERIFICATION" ? "access not verified" : null].filter(Boolean)
         items.push({
           kind: "check", tone: "neutral", title: "Pickup details not verified for this order", short: "Pickup contact or access not verified",
-          detail: `Contact ${labelIn(contact)}, access ${labelIn(access)}${source ? ` (${labelIn(source)})` : ""}. Not an incident; check before the driver travels.`,
+          detail: `Pickup ${gaps.join(" and ")}. Check before the driver travels.`,
           owner: null, at: null, atLabel: null, section: "journey", recordId: detail.id,
         })
       }
