@@ -287,6 +287,11 @@ const OPEN_WORK = new Set(["OPEN", "NEEDS_EXTERNAL_INPUT", "IN_PROGRESS", "WAITI
 const OPEN_PROPOSAL = new Set(["PENDING_REVIEW", "APPROVED_AWAITING_EXECUTION", "FAILED"])
 const OPEN_DOCUMENT = new Set(["MISSING", "REQUESTED"])
 
+function sentenceCase(text: string): string {
+  const lower = text.toLowerCase()
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
 function countLabels(sources: SourceRef[]): string {
   const counts = new Map<string, number>()
   for (const source of sources) counts.set(source.label.toLowerCase(), (counts.get(source.label.toLowerCase()) ?? 0) + 1)
@@ -303,7 +308,7 @@ function nothingOpen(facts: Facts): RuleResult {
   const open: SourceRef[] = [
     ...rows(bundle, "proofs").filter((row) => OPEN_PROOF.has(String(row.details.status))).map((row) => closable("proofs", row, `Proof ${String(row.details.status).toLowerCase()}`)),
     ...rows(bundle, "documents").filter((row) => row.details.required === true && OPEN_DOCUMENT.has(String(row.details.status)))
-      .map((row) => closable("documents", row, `${String(row.details.kind).toLowerCase().replace(/_/g, " ")} ${String(row.details.status).toLowerCase()}`)),
+      .map((row) => closable("documents", row, sentenceCase(`${String(row.details.kind).replace(/_/g, " ")} ${String(row.details.status)}`))),
     ...rows(bundle, "endpoint_claims").filter((row) => row.details.resolution_status === "OPEN").map((row) => closable("endpoint_claims", row, "Unresolved claim")),
     ...bundle.alerts.filter((alert) => OPEN_ALERT.has(alert.status)).map((alert) => ({ collection: "alerts", id: alert.id, label: `Alert ${alert.status.toLowerCase()}`, close: CLOSING.alerts.verb(alert.details, alert.status) })),
     ...rows(bundle, "work_items").filter((row) => OPEN_WORK.has(String(row.details.status))).map((row) => closable("work_items", row, "Open work item")),
@@ -314,7 +319,8 @@ function nothingOpen(facts: Facts): RuleResult {
       .map((row) => closable("work_assignments", row, "A car of this order is still on the road")),
   ]
   if (!open.length) return result("CLOSE", "strong", title, "pass", "No proof, document, claim, alert, work item, proposal, custody follow-up or trade-in is open.", null, [])
-  return result("CLOSE", "strong", title, "fail",
+  // A failing check reads as the problem, not the condition it checks.
+  return result("CLOSE", "strong", "Finished order still has loose ends", "fail",
     `The order is ${str(bundle.order.details.cancelled_at) ? "cancelled" : "delivered"} but ${open.length === 1 ? "one record is" : `${open.length} records are`} still open: ${countLabels(open)}.`,
     "show_person", open)
 }
@@ -520,7 +526,7 @@ export const RULE_CATALOGUE: Record<RuleId, RuleInfo> = {
   R11: { id: "R11", strength: "strong", title: "Pickup recorded once the pickup slot has passed", firstAction: "Shown to a person" },
   R12: { id: "R12", strength: "strong", title: "Latest ETA within the delivery promise", firstAction: "Routine driver call (\"can you still deliver on time?\")" },
   R13: { id: "R13", strength: "strong", title: "Positioning costs match a travel reservation", firstAction: "Reviewer pass" },
-  CLOSE: { id: "CLOSE", strength: "strong", title: "Nothing left open on the finished order", firstAction: "Shown to a person (finished orders only)" },
+  CLOSE: { id: "CLOSE", strength: "strong", title: "No loose ends on the finished order", firstAction: "Shown to a person (finished orders only)" },
   NEXT: { id: "NEXT", strength: "strong", title: "Scheduled next checks are followed up when due", firstAction: "Routine site call when the check waits on the pickup site; otherwise a proposal to the operator (a customer-side contact or an operator question)" },
   R4: { id: "R4", strength: "weak", title: "Handover details confirmed by someone about this order", firstAction: "Couldn't check; a routine site call when pickup is within 48 h and a contact is known" },
   R5: { id: "R5", strength: "weak", title: "Handover contacts on record and confirmed for this order", firstAction: "Couldn't check; a routine site call when pickup is within 48 h and a contact is known" },

@@ -223,6 +223,8 @@ test("Done holds only finished orders with nothing open; a delivered order with 
   assert.equal(handover.group, "needs_action")
   assert.equal(rule(handover, "CLOSE").outcome, "fail")
   assert.ok(rule(handover, "CLOSE").sources.some((source) => source.id === "doc-0264"))
+  assert.equal(rule(handover, "CLOSE").title, "Finished order still has loose ends")
+  assert.equal(rule(handover, "CLOSE").sources.find((source) => source.id === "doc-0264")?.label, "Signed handover missing")
   // CD-420055: delivered, but the trade-in leg (asg-xb21b8c6f3175033c) is still on the road.
   const tradeIn = await order("CD-420055")
   assert.equal(tradeIn.group, "needs_action")
