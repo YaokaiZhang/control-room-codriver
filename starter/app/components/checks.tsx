@@ -66,7 +66,7 @@ function RuleItem({ orderId, rule, samePage }: { orderId: string; rule: RuleResu
 }
 
 function plannedText(action: PlannedAction): string {
-  if (action.kind === "reviewer_pass") return "Reviewer pass"
+  if (action.kind === "reviewer_pass") return "AI review"
   const who = action.callee ? action.callee.name ?? action.callee.handle : null
   return action.kind === "site_call" ? `Site call to ${who ?? "the pickup site"}` : "Driver call"
 }

@@ -102,7 +102,7 @@ export function AgentAvatar() {
   const tasks = (status?.orders ?? []).filter((task) => highlights.includes(task.id))
   const working = tasks.some((task) => task.group === "in_progress")
   const waiting = working ? 0 : tasks.filter((task) => task.group === "solved").length
-  const doneText = `${waiting} new task${waiting === 1 ? "" : "s"} done and need${waiting === 1 ? "s" : ""} further approval`
+  const doneText = `${waiting} done, waiting for you`
   const label = !highlights.length ? "Agent: no highlighted orders" : working ? "Agent: working" : waiting > 0 ? `Agent: ${doneText}` : "Agent: idle"
 
   // The list opens on the side of the avatar with more room.

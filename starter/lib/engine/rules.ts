@@ -519,16 +519,16 @@ export function buildFleet(bundles: Bundle[]): Fleet {
 export type RuleInfo = { id: RuleId; strength: "strong" | "weak"; title: string; firstAction: string }
 
 export const RULE_CATALOGUE: Record<RuleId, RuleInfo> = {
-  R1: { id: "R1", strength: "strong", title: "Signed release on file when the pickup site requires one", firstAction: "Routine site call when pickup is within 48 h and a contact is known; otherwise shown to a person" },
-  R3: { id: "R3", strength: "strong", title: "Driver positioning follows the driver's actual previous duty", firstAction: "Reviewer pass (it becomes an operator question)" },
-  R7: { id: "R7", strength: "strong", title: "Delivery promise matches the customer's requested slot", firstAction: "Reviewer pass" },
+  R1: { id: "R1", strength: "strong", title: "Signed release on file when the pickup site requires one", firstAction: "Routine site call when pickup is within 48 h and a contact is known; otherwise flagged for you" },
+  R3: { id: "R3", strength: "strong", title: "Driver positioning follows the driver's actual previous duty", firstAction: "The AI reviewer checks it and asks you if it looks wrong" },
+  R7: { id: "R7", strength: "strong", title: "Delivery promise matches the customer's requested slot", firstAction: "The AI reviewer checks it and proposes a fix" },
   R10: { id: "R10", strength: "strong", title: `Live position within ${STALE_TRACKING_HOURS} h while the car is moving`, firstAction: "Routine driver check-in call" },
-  R11: { id: "R11", strength: "strong", title: "Pickup recorded once the pickup slot has passed", firstAction: "Shown to a person" },
+  R11: { id: "R11", strength: "strong", title: "Pickup recorded once the pickup slot has passed", firstAction: "Flagged for you" },
   R12: { id: "R12", strength: "strong", title: "Latest ETA within the delivery promise", firstAction: "Routine driver call (\"can you still deliver on time?\")" },
-  R13: { id: "R13", strength: "strong", title: "Positioning costs match a travel reservation", firstAction: "Reviewer pass" },
-  CLOSE: { id: "CLOSE", strength: "strong", title: "No loose ends on the finished order", firstAction: "Shown to a person (finished orders only)" },
-  NEXT: { id: "NEXT", strength: "strong", title: "Scheduled next checks are followed up when due", firstAction: "Routine site call when the check waits on the pickup site; otherwise a proposal to the operator (a customer-side contact or an operator question)" },
-  R4: { id: "R4", strength: "weak", title: "Handover details confirmed by someone about this order", firstAction: "Couldn't check; a routine site call when pickup is within 48 h and a contact is known" },
-  R5: { id: "R5", strength: "weak", title: "Handover contacts on record and confirmed for this order", firstAction: "Couldn't check; a routine site call when pickup is within 48 h and a contact is known" },
-  R6: { id: "R6", strength: "weak", title: "Delivery promise set by the customer", firstAction: "Couldn't check; a routine site call when pickup is within 48 h and a contact is known" },
+  R13: { id: "R13", strength: "strong", title: "Positioning costs match a travel reservation", firstAction: "The AI reviewer checks it and proposes a fix" },
+  CLOSE: { id: "CLOSE", strength: "strong", title: "No loose ends on the finished order", firstAction: "Flagged for you (finished orders only)" },
+  NEXT: { id: "NEXT", strength: "strong", title: "Scheduled next checks are followed up when due", firstAction: "Routine site call when the check waits on the pickup site; otherwise asks you" },
+  R4: { id: "R4", strength: "weak", title: "Handover details confirmed by someone about this order", firstAction: "Routine site call" },
+  R5: { id: "R5", strength: "weak", title: "Handover contacts on record and confirmed for this order", firstAction: "Routine site call" },
+  R6: { id: "R6", strength: "weak", title: "Delivery promise set by the customer", firstAction: "Routine site call" },
 }
