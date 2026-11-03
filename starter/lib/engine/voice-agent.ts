@@ -247,7 +247,7 @@ export function briefFor(bundle: Bundle, call: Call): string {
   return [
     `Order ${call.reference}${call.car ? `, a ${call.car}` : ""}.`,
     `You are the car delivery control room's assistant on the phone with ${name}, the ${call.line === "driver" ? "assigned driver" : `contact at the pickup site${call.callee.role ? ` (${call.callee.role})` : ""}`}.`,
-    `Why we called (control room note, UTC times): ${call.reason}`,
+    `Why we called (control room note, times in the control room's zone): ${call.reason}`,
     ...(keypad.length ? [`Keypad answers so far: ${keypad.join(" ")}`] : []),
     ...(escalation ? [`Moved to tier 2: ${escalation}.`] : []),
     ...facts,

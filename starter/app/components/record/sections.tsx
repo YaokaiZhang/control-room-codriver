@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import type { JourneyLeg, JourneyStep, ProposalView, RecordView, ThreadView } from "@/lib/present/types"
-import { fmtClock, fmtDateTime, fmtDay, relativeTo } from "@/lib/present/time"
+import { fmtClock, fmtDateTime, fmtDay, deskZoneName, relativeTo } from "@/lib/present/time"
 import { Icon } from "../icons"
 import { Route } from "../route-line"
 import { ActorName, Empty, OrderLink, OrderLinks, Pill, Range, SectionHead, When } from "../ui"
@@ -161,7 +161,7 @@ export function ActivitySection({ view }: { view: RecordView }) {
   const events = view.history.flatMap((day) => day.events)
   const shown = all ? events : events.slice(0, 6)
   return <section className="sec" id="history">
-    <SectionHead title="Activity" count={view.historyTotal} note={events.length ? "times in UTC" : null} />
+    <SectionHead title="Activity" count={view.historyTotal} note={events.length ? `times in ${deskZoneName(events[0].at)}` : null} />
     {events.length === 0 && <Empty>No events recorded.</Empty>}
     <div className="events">{shown.map((event) => <div className="event" key={event.id}>
       <time dateTime={event.at} title={fmtDateTime(event.at)}>{fmtDay(event.at)} {fmtClock(event.at)}</time>

@@ -30,7 +30,7 @@ test("CD-420437's driver line waits for the operator: the ETA leaves two minutes
   const line = before.callLines.find((row) => row.line === "driver")
   assert.ok(line, "a tight ETA gives the order a driver line")
   assert.equal(line.status, "on_request")
-  assert.match(line.text, /13:58 UTC.*2 min before the promise ends at 14:00 UTC/)
+  assert.match(line.text, /16:58 EEST.*2 min before the promise ends at 17:00 EEST/)
   assert.equal(line.callee?.handle, "drv-367")
 
   await engine.apply({ type: "runCalls" })
