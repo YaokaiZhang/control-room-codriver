@@ -83,7 +83,7 @@ test("a reported problem moves the live call to tier 2: the voice agent opens wi
 
   const row = await order(engine, "CD-420437")
   assert.equal(row.group, "in_progress")
-  assert.match(row.reason, /Calling Thomas Mellervik \(tier 2\)/)
+  assert.match(row.reason, /Calling Thomas Mellervik: /)
 })
 
 const LATE = "I'm stuck in traffic after an accident, I'll be about forty minutes late, around half past four."

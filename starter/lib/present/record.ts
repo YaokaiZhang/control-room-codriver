@@ -794,7 +794,7 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
   const waiting = bundle.conversations.find((thread) => thread.status === "OPEN" && str(thread.details.waiting_on))
   const detail = waiting
     ? `Waiting on ${labelIn(str(waiting.details.waiting_on))}.${requested ? ` Requested pickup ${range(requested)}.` : ""}`
-    : requested ? `Requested pickup ${range(requested)}.` : `Created ${rel(order.createdAt) ?? fmtDay(order.createdAt)}, inputs still being prepared.`
+    : requested ? `Requested pickup ${range(requested)}.` : `Created ${rel(order.createdAt) ?? fmtDay(order.createdAt)}.`
   return { intro, headline: "Still being prepared.", tone: "warn", detail }
 }
 

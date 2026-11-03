@@ -46,7 +46,7 @@ const needsText = (step: Step): step is Extract<Step, { prompt: string }> => "pr
 export function dueText(dueAt: string | null | undefined, now: string | null | undefined): string | null {
   if (!dueAt || !now) return null
   const minutes = Math.round((new Date(dueAt).getTime() - new Date(now).getTime()) / 60000)
-  const span = (m: number) => m < 60 ? `${Math.max(1, m)} min` : m < 48 * 60 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`
+  const span = (m: number) => m < 60 ? `${Math.max(1, m)} min` : m < 36 * 60 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`
   return minutes < 0 ? `Overdue ${span(-minutes)}` : `Due in ${span(minutes)}`
 }
 

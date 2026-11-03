@@ -283,7 +283,7 @@ export function createReviewLayer(bundles: Bundle[], snapshotAt: string, options
     const list = triggers.get(id) ?? []
     const base = { trigger: (list.length ? "records" : "sweep") as ReviewTrigger, triggers: list, reviewAt: reviewAt(bundle) }
     if (!("status" in found)) {
-      const cause = failures.get(id) ?? (gateway ? null : "no model key is configured")
+      const cause = failures.get(id) ?? (gateway ? null : "the reviewer is off")
       return {
         ...base, status: "not_reviewed", recordsRead: found.recordsRead, summary: null, findings: [], dropped: 0, highlights: [],
         reason: cause ? `${NOT_REVIEWED_YET}: ${cause}` : NOT_REVIEWED_YET, cost: 0, model: null, reviewedAt: null, runId: null,

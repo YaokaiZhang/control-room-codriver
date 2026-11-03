@@ -110,7 +110,11 @@ test("prose containing a typed digit is rejected and replaced with template text
   assert.equal(prose.source, "template")
   assert.match(prose.note ?? "", /digit/)
   assert.ok(!plain(prose.opener).includes("There are 20"))
-  assert.match(plain(prose.opener), new RegExp(`${state.groupCounts.needs_action} orders need a decision`))
+  const urgentBlocked = state.orders.filter((row) => row.group === "needs_action" && row.urgency.urgent).length
+  assert.ok(urgentBlocked > 0 && urgentBlocked < state.groupCounts.needs_action, "the demo has some, not all, Blocked orders urgent")
+  assert.match(plain(prose.opener), new RegExp(`^Good morning\\. ${urgentBlocked} of the ${state.groupCounts.needs_action} blocked orders (is|are) urgent`))
+  assert.doesNotMatch(plain(prose.opener), /\b0 /, "no zero counts")
+  assert.doesNotMatch(plain(prose.firstMove), /work item:/, "the first move names the work, not its label")
 })
 
 test("prose that spells a count out in words is rejected too", async () => {

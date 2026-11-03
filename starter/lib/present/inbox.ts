@@ -11,6 +11,14 @@ const LINK_TONE: Record<string, Tone> = {
   CONFIRMED_SINGLE: "ok", CONFIRMED_MULTI: "ok", NO_ORDER_REQUIRED: "neutral",
 }
 
+// Inbox wording that differs from the shared labels: say what is missing, and don't repeat the link pill.
+const LINK_STATE_LABEL: Record<string, string> = {
+  PENDING_MATCH: "Order not identified", PENDING_IDENTITY: "Reference not on sender's account",
+}
+const DECISION_LABEL: Record<string, string> = {
+  LINK_ONE_ORDER: "Linked", LINK_SEVERAL_ORDERS: "Linked", OPERATOR_LINKED: "Linked",
+}
+
 export function buildInboxView(threads: Row[], messages: Row[], dir: Directory, refs: Record<string, string>, snapshotAt: string | null): InboxView {
   const ref = (id: string) => ({ id, reference: refs[id] ?? id })
   const views: InboxThreadView[] = threads.map((thread) => {
@@ -24,14 +32,14 @@ export function buildInboxView(threads: Row[], messages: Row[], dir: Directory, 
       id, category: str(thread.category) ?? "", categoryLabel: label(str(thread.category)) || humanize(str(thread.category)),
       channel: str(thread.channel) ?? "", channelLabel: label(str(thread.channel)) || humanize(str(thread.channel)),
       status, statusLabel: label(status), tone: (status === "OPEN" ? "accent" : "neutral") as Tone,
-      linkState, linkStateLabel: label(linkState), linkTone: LINK_TONE[linkState] ?? "neutral",
+      linkState, linkStateLabel: LINK_STATE_LABEL[linkState] ?? label(linkState), linkTone: LINK_TONE[linkState] ?? "neutral",
       owner: dir.title(thread.owner), waitingOn: str(thread.waiting_on) ? labelIn(str(thread.waiting_on)) : null,
       counterparty, openedAt: str(thread.opened_at), updatedAt: str(thread.updated_at),
       candidateBasis: str(thread.candidate_basis),
       candidates: strings(thread.candidate_order_ids).map(ref),
       linked: strings(thread.linked_order_ids).map(ref),
       operatorLinked: strings(thread.operator_linked_order_ids),
-      resolution: resolution ? { decisionLabel: label(str(resolution.decision)) || "Resolved", at: str(resolution.decided_at) } : null,
+      resolution: resolution ? { decisionLabel: DECISION_LABEL[str(resolution.decision) ?? ""] ?? (label(str(resolution.decision)) || "Resolved"), at: str(resolution.decided_at) } : null,
       messages: messages.filter((message) => message.thread_id === id).map((message) => {
         const channel = str(message.channel) ?? ""
         return {

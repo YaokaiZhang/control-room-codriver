@@ -33,11 +33,21 @@ function useJobs(): { jobs: DriverJob[] | null; error: string } {
 
 const slotText = (slot: DriverJob["pickupWindow"]) => slot ? `${fmtDateTime(slot.start, slot.zone, false)}–${fmtDateTime(slot.end, slot.zone).split(" ").slice(2).join(" ")}` : "time to agree"
 
-/** What makes a job demanding, in a few words: "ferry or train · ~15 h driving". */
+/** The crossing in a few words: "ferry East Sweden → South Finland" when the plan names the terminals, else "ferry crossing" or "train leg". */
+function crossingText(job: DriverJob, crossing: string): string {
+  if (crossing.startsWith("rail")) return "train leg"
+  const placeholder = (name: string) => /^((departure|arrival) )?terminal$/i.test(name.trim())
+  const ferry = job.plan?.legs.find((leg) => leg.kind === "ferry" && !placeholder(leg.from) && !placeholder(leg.to))
+  const port = (name: string) => name.replace(/\s+terminal$/i, "")
+  if (ferry) return `ferry ${port(ferry.from)} → ${port(ferry.to)}`
+  return crossing.startsWith("ferry quotes") ? "likely a ferry" : "ferry crossing"
+}
+
+/** What makes a job demanding, in a few words: "ferry East Sweden → South Finland · ~15 h driving". */
 function demands(job: DriverJob): string | null {
   if (!job.check.demanding) return null
   const parts = [
-    job.check.crossings.length > 0 ? "ferry or train" : null,
+    ...job.check.crossings.map((crossing) => crossingText(job, crossing)),
     job.check.driveHours !== null && job.check.driveHours > 12 ? `~${job.check.driveHours} h driving` : null,
   ].filter(Boolean)
   return parts.length ? `Demanding: ${parts.join(" · ")}` : "Demanding"

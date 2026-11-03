@@ -78,7 +78,7 @@ export default function InboxPage() {
               <span className="mail-row-when">{fmtDay(item.updatedAt)}</span>
             </span>
             <span className="mail-row-subject">{item.categoryLabel}<Pill tone={item.linkTone}>{item.linkStateLabel}</Pill></span>
-            {last && <span className="mail-row-preview">{last.body}</span>}
+            {last && <span className="mail-row-preview">{last.author.kind === "operator" || last.author.kind === "agent" ? `You: ${last.body}` : last.body}</span>}
           </button>
         </li>
       })}</ul>
@@ -153,23 +153,24 @@ function Thread({ thread, onBack, onChange }: { thread: InboxThreadView; onBack:
         <Pill tone={thread.tone}>{thread.statusLabel}</Pill>
       </div>
       <dl className="mail-facts">
-        <div><dt>From</dt><dd>{thread.counterparty ? <><ActorName actor={thread.counterparty} /> <span className="muted">({thread.counterparty.role})</span></> : "Unknown"}</dd></div>
+        <div><dt>From</dt><dd>{thread.counterparty ? <><ActorName actor={thread.counterparty} />{thread.counterparty.role && <> <span className="muted">({capitalise(thread.counterparty.role)})</span></>}</> : "Unknown"}</dd></div>
         <div><dt>Channel</dt><dd>{thread.channelLabel}</dd></div>
         <div><dt>Owner</dt><dd>{thread.owner ?? "Not recorded"}</dd></div>
         {thread.waitingOn && <div><dt>Waiting on</dt><dd>{thread.waitingOn}</dd></div>}
         <div><dt>Opened</dt><dd><When at={thread.openedAt} withZone={false} /></dd></div>
         {thread.linked.length > 0 && <div><dt>Linked orders</dt><dd><LinkedOrders thread={thread} onChange={onChange} /></dd></div>}
-        {thread.candidates.length > 0 && !thread.linked.length && <div><dt>Candidates</dt><dd><OrderLinks orders={thread.candidates} /> <span className="muted">hypotheses, not links</span></dd></div>}
-        {thread.resolution && <div><dt>Resolution</dt><dd>{thread.resolution.decisionLabel}{thread.resolution.at ? `, ${fmtDateTime(thread.resolution.at)}` : ""}</dd></div>}
+        {thread.candidates.length > 0 && !thread.linked.length && <div><dt>Likely order</dt><dd><OrderLinks orders={thread.candidates} /> <span className="muted">(not linked yet)</span></dd></div>}
+        {thread.resolution && <div><dt>Resolved</dt><dd>{thread.resolution.decisionLabel}{thread.resolution.at ? ` ${fmtDateTime(thread.resolution.at)}` : ""}</dd></div>}
       </dl>
-      {thread.candidateBasis && <p className="mail-basis"><b>Basis.</b> {thread.candidateBasis}</p>}
+      {thread.candidateBasis && <p className="mail-basis"><b>Why:</b> {thread.candidateBasis}</p>}
       <LinkOrder thread={thread} onChange={onChange} />
     </header>
 
 
     <div className="messages mail-messages">{thread.messages.map((message) => <div className={`msg${message.internal ? " internal" : message.author.kind === "operator" ? " from-operator" : ""}`} key={message.id}>
-      <div className="msg-meta"><b><ActorName actor={message.author} /></b><span>{message.author.role}</span><span>to {message.recipient.name}</span><span>· {message.channelLabel}</span>
-        {message.internal && <Pill tone="warn">Internal</Pill>}
+      <div className="msg-meta"><b><ActorName actor={message.author} /></b>{message.internal
+        ? <span>· {message.channelLabel}</span>
+        : <><span>to {message.recipient.name}</span><span>· {message.channelLabel}</span></>}
         {message.sentFromApp && <Pill tone="ok">{message.draftedByAgent ? "Sent, drafted by the agent" : "Sent from the inbox"}</Pill>}
         <time dateTime={message.at}>{fmtDateTime(message.at)}</time></div>
       <p className="msg-body">{message.body}</p>
@@ -202,7 +203,6 @@ function Thread({ thread, onBack, onChange }: { thread: InboxThreadView; onBack:
         onChange={(event) => { setDraft(event.target.value); if (!event.target.value) setFromAgent(false) }} />
       <div className="sit-actions">
         <button type="submit" className="btn btn-s btn-primary" disabled={sending || !draft.trim()}>{sending ? "Sending…" : "Send reply"}</button>
-        {!draft && suggestion && <button type="button" className="btn btn-s btn-quiet" onClick={useDraft}>Use the agent's draft</button>}
         {draft && <button type="button" className="btn btn-s btn-quiet" disabled={sending} onClick={() => { setDraft(""); setFromAgent(false) }}>Clear</button>}
         {fromAgent && <span className="mail-agent-source">Starts from the agent's draft; edit before sending.</span>}
       </div>
@@ -265,3 +265,5 @@ function LinkOrder({ thread, onChange }: { thread: InboxThreadView; onChange: (v
     {error && <p className="close-error" role="alert">{error}</p>}
   </div>
 }
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)

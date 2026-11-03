@@ -10,6 +10,7 @@
 
 import { createHash } from "node:crypto"
 import { num, rows, str, type Bundle } from "@/lib/present/bundle"
+import { fmtDateTime } from "@/lib/present/time"
 import type { Row } from "@/lib/present/types"
 import type { Effort, ModelGateway } from "@/lib/reviewer/gateway"
 import { DEFAULT_REVIEWER_MODEL } from "@/lib/reviewer/reviewer"
@@ -112,30 +113,32 @@ export function planInput(bundle: Bundle, check: DemandCheck, budgetEur: number,
   }
 }
 
-const hhmm = (iso: string | null | undefined) => iso ? `${iso.slice(0, 16).replace("T", " ")} UTC` : "time to agree"
+/** "22 Oct 09:00 CEST" in the place's zone, like the job card; "time to agree" without a time. */
+const at = (iso: string | null | undefined, zone: string | null | undefined) => (iso && fmtDateTime(iso, zone)) || "time to agree"
 
 /** The template plan: fixed rules, rough prices. Used without a model or when its reply is rejected. */
 export function templatePlan(input: PlanInput, note: string): TravelPlan {
   const legs: TravelLeg[] = []
   const pickupAt = input.pickupWindow?.start ?? null
-  legs.push({ kind: "train", from: "Driver's home area", to: input.from.city, when: `Before the pickup slot (${hhmm(pickupAt)})`, costEur: 40, note: "Rough fare; the driver's home is not known before a driver takes the job." })
+  const pickupZone = input.pickupWindow?.zone ?? input.from.zone
+  legs.push({ kind: "train", from: "Driver's home area", to: input.from.city, when: `Before the pickup slot (${at(pickupAt, pickupZone)})`, costEur: 40, note: "Rough fare; the driver's home is not known before a driver takes the job." })
   const hours = input.driveHours
   const hotel = hours !== null && hours > HOTEL_DRIVE_HOURS
-  legs.push({ kind: "drive", from: input.from.city, to: input.to.city, when: `From pickup (${hhmm(pickupAt)})`, costEur: 0, note: hours !== null ? `About ${hours} h for ${input.km} km.` : "Route length not recorded." })
+  legs.push({ kind: "drive", from: input.from.city, to: input.to.city, when: `From pickup (${at(pickupAt, pickupZone)})`, costEur: 0, note: hours !== null ? `About ${hours} h for ${input.km} km.` : "Route length not recorded." })
   if (hotel) legs.push({ kind: "hotel", from: "About halfway", to: "About halfway", when: "Night after pickup", costEur: 90, note: `More than ${HOTEL_DRIVE_HOURS} h of driving: one night stop.` })
   if (input.crossings.some((text) => text.includes("ferry"))) {
     const ferry = input.quotes.filter((quote) => quote.kind === "FERRY" && quote.eur !== null && quote.status !== "SOLD_OUT").sort((a, b) => a.eur! - b.eur!)[0]
     legs.push(ferry
-      ? { kind: "ferry", from: ferry.from ?? "Terminal", to: ferry.to ?? "Terminal", when: hhmm(ferry.departureAt), costEur: ferry.eur!, note: `Cheapest open quote in the data (${ferry.provider ?? "provider not recorded"}).` }
+      ? { kind: "ferry", from: ferry.from ?? "Terminal", to: ferry.to ?? "Terminal", when: at(ferry.departureAt, input.from.zone), costEur: ferry.eur!, note: `Cheapest open quote in the data (${ferry.provider ?? "provider not recorded"}).` }
       : { kind: "ferry", from: "Departure terminal", to: "Arrival terminal", when: "On the way", costEur: 0, note: "No ferry fare in the data: check the crossing and its price." })
   }
-  legs.push({ kind: "train", from: input.to.city, to: "Driver's home area", when: `After delivery (${hhmm(input.deliveryWindow?.end)})`, costEur: 60, note: "Rough fare home." })
+  legs.push({ kind: "train", from: input.to.city, to: "Driver's home area", when: `After delivery (${at(input.deliveryWindow?.end, input.deliveryWindow?.zone ?? input.to.zone)})`, costEur: 60, note: "Rough fare home." })
   const totalEur = legs.reduce((sum, leg) => sum + leg.costEur, 0)
   return {
     summary: `Train to ${input.from.city}, drive to ${input.to.city}${hotel ? " with one night stop" : ""}${legs.some((leg) => leg.kind === "ferry") ? " and a ferry crossing" : ""}, then train home.`,
-    hotel: { needed: hotel, why: hotel ? `About ${hours} h of driving, more than ${HOTEL_DRIVE_HOURS} h of continuous driving.` : `The drive is ${HOTEL_DRIVE_HOURS} h or less: no hotel.` },
+    hotel: { needed: hotel, why: hotel ? `about ${hours} h of driving` : hours !== null ? `${HOTEL_DRIVE_HOURS} h or less of driving` : "route length not recorded" },
     legs, totalEur, budgetEur: input.budgetEur, withinBudget: totalEur <= input.budgetEur,
-    caveats: ["Rough template prices, not quotes. Nothing is booked."],
+    caveats: ["Rough prices, not quotes."],
     source: "template", model: null, cost: 0, cached: false, note,
   }
 }

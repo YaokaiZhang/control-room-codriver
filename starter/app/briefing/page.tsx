@@ -12,7 +12,7 @@ import type { DigestItem, LessonItem, PushItem } from "@/lib/engine/engine"
 import type { Group } from "@/lib/engine/checks"
 import type { BoardCard, BriefingView } from "@/lib/present/types"
 import { fmtDateTime } from "@/lib/present/time"
-import { BRIEFING_EVENT, itemSummary, Prose } from "../components/briefing"
+import { BRIEFING_EVENT, itemSummary, Prose, urgentBlocked } from "../components/briefing"
 import { GROUP_LABEL } from "../components/checks"
 import { useClockVersion } from "../components/demo-clock"
 import { Icon } from "../components/icons"
@@ -121,9 +121,9 @@ function OrderSituation({ orderId, reference, card, now }: { orderId: string; re
   return <p className="digest-gone"><OrderRef orderId={orderId} reference={reference} />{group ? ` is ${GROUP_LABEL[group].toLowerCase()} now.` : ""}</p>
 }
 
-const COUNT_TILES: { key: Group | "urgent" | "couldnt_check"; label: string }[] = [
+const COUNT_TILES: { key: Group | "urgent"; label: string }[] = [
   { key: "needs_action", label: GROUP_LABEL.needs_action },
-  { key: "urgent", label: "Urgent" },
+  { key: "urgent", label: `Urgent (of ${GROUP_LABEL.needs_action.toLowerCase()})` },
   { key: "in_progress", label: GROUP_LABEL.in_progress },
   { key: "solved", label: GROUP_LABEL.solved },
 ]
@@ -132,13 +132,15 @@ function Digest({ item, cards, now }: { item: DigestItem; cards: Map<string, Boa
   const { facts, prose } = item
   const changes = facts.changes
   const since = facts.since ? time(facts.since) : "the last digest"
+  // The Urgent tile counts urgent Blocked orders only, so it reads as a part of Blocked.
+  const count = (key: Group | "urgent") => key === "urgent" ? urgentBlocked(facts) : facts.counts[key]
   return <>
     <header className="mail-head">
       <h2>{item.title}</h2>
     </header>
 
-    <dl className="digest-counts">{COUNT_TILES.filter((tile) => facts.counts[tile.key] > 0).map((tile) => <div key={tile.key} className={(tile.key === "needs_action" || tile.key === "urgent") && facts.counts[tile.key] ? "tone-danger" : ""}>
-      <dt>{tile.label}</dt><dd>{facts.counts[tile.key]}</dd>
+    <dl className="digest-counts">{COUNT_TILES.filter((tile) => count(tile.key) > 0).map((tile) => <div key={tile.key} className={tile.key === "needs_action" || tile.key === "urgent" ? "tone-danger" : ""}>
+      <dt>{tile.label}</dt><dd>{count(tile.key)}</dd>
     </div>)}</dl>
 
     <p className="digest-prose"><Prose segments={prose.opener} /></p>
@@ -151,7 +153,7 @@ function Digest({ item, cards, now }: { item: DigestItem; cards: Map<string, Boa
     </dl>}
 
     <section className="digest-block" aria-label={GROUP_LABEL.needs_action}>
-      <h3>{GROUP_LABEL.needs_action} <span className="count">{facts.needsAction.length}</span></h3>
+      <h3>{GROUP_LABEL.needs_action}</h3>
       {facts.needsAction.length ? <ol className="digest-sits">{facts.needsAction.map((line) => <li key={line.orderId}>
         <OrderSituation orderId={line.orderId} reference={line.reference} card={cards.get(line.orderId) ?? null} now={now} />
       </li>)}</ol> : <p className="empty-line">Nothing needs you.</p>}

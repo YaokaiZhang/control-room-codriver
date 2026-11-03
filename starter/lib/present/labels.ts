@@ -6,7 +6,7 @@ export const LANES = [
   ["intake", "New orders"],
   ["ready", "Ready to post"],
   // Not a dataset lane: an order not on the market yet that is Solved waits here for the operator's yes (lib/engine/publishing.ts).
-  ["confirm", "Fixed, review it"],
+  ["confirm", "Waiting for your yes"],
   ["market", "Finding a driver"],
   ["booked", "Driver assigned"],
   ["moving", "Moving"],
@@ -22,7 +22,7 @@ export type Lane = (typeof LANES)[number][0]
  */
 export const PIPELINE = [
   { key: "unpublished", label: "Unpublished", lanes: ["intake", "ready"] },
-  { key: "approval", label: "Fixed, review it", lanes: ["confirm"] },
+  { key: "approval", label: "Waiting for your yes", lanes: ["confirm"] },
   { key: "market", label: "Finding a driver", lanes: ["market"] },
   { key: "assigned", label: "Driver assigned", lanes: ["booked", "moving"] },
   { key: "done", label: "Done", lanes: ["delivered", "cancelled"] },

@@ -81,6 +81,7 @@ function gather(bundle: Bundle, context: RuleContext): Facts {
 }
 
 function result(id: RuleId, strength: "strong" | "weak", title: string, outcome: RuleResult["outcome"], detail: string, firstAction: FirstAction | null, sources: SourceRef[]): RuleResult {
+  if (outcome === "fail") title = FAIL_TITLE[id] ?? title
   return { id, strength, title, outcome, detail, firstAction: outcome === "fail" || (strength === "weak" && firstAction) ? firstAction : null, sources }
 }
 
@@ -306,21 +307,21 @@ function nothingOpen(facts: Facts): RuleResult {
   const closable = (collection: ClosableCollection, row: RelatedRow, label: string): SourceRef =>
     ({ ...ref(collection, row, label), close: CLOSING[collection].verb(row.details, str(row.details.status)) })
   const open: SourceRef[] = [
-    ...rows(bundle, "proofs").filter((row) => OPEN_PROOF.has(String(row.details.status))).map((row) => closable("proofs", row, `Proof ${String(row.details.status).toLowerCase()}`)),
+    ...rows(bundle, "proofs").filter((row) => OPEN_PROOF.has(String(row.details.status))).map((row) => closable("proofs", row, row.details.status === "SUBMITTED" ? "Proof to review" : `Proof ${String(row.details.status).toLowerCase()}`)),
     ...rows(bundle, "documents").filter((row) => row.details.required === true && OPEN_DOCUMENT.has(String(row.details.status)))
       .map((row) => closable("documents", row, sentenceCase(`${String(row.details.kind).replace(/_/g, " ")} ${String(row.details.status)}`))),
     ...rows(bundle, "endpoint_claims").filter((row) => row.details.resolution_status === "OPEN").map((row) => closable("endpoint_claims", row, "Unresolved claim")),
-    ...bundle.alerts.filter((alert) => OPEN_ALERT.has(alert.status)).map((alert) => ({ collection: "alerts", id: alert.id, label: `Alert ${alert.status.toLowerCase()}`, close: CLOSING.alerts.verb(alert.details, alert.status) })),
+    ...bundle.alerts.filter((alert) => OPEN_ALERT.has(alert.status)).map((alert) => ({ collection: "alerts", id: alert.id, label: alert.status === "OPEN" ? "Open alert" : `Alert ${alert.status.toLowerCase()}, not resolved`, close: CLOSING.alerts.verb(alert.details, alert.status) })),
     ...rows(bundle, "work_items").filter((row) => OPEN_WORK.has(String(row.details.status))).map((row) => closable("work_items", row, "Open work item")),
     ...rows(bundle, "incidents").filter((row) => !str(row.details.resolved_at)).map((row) => closable("incidents", row, "Open incident")),
-    ...rows(bundle, "agent_proposals").filter((row) => OPEN_PROPOSAL.has(String(row.details.status))).map((row) => closable("agent_proposals", row, "Proposal not settled")),
+    ...rows(bundle, "agent_proposals").filter((row) => OPEN_PROPOSAL.has(String(row.details.status))).map((row) => closable("agent_proposals", row, "Unsettled proposal")),
     ...rows(bundle, "custody_assets").filter((row) => str(row.details.next_action)).map((row) => closable("custody_assets", row, "Custody follow-up")),
     ...rows(bundle, "work_assignments").filter((row) => row.details.order_id === bundle.order.id && LIVE_DUTY.has(String(row.details.status)))
       .map((row) => closable("work_assignments", row, "A car of this order is still on the road")),
   ]
   if (!open.length) return result("CLOSE", "strong", title, "pass", "No proof, document, claim, alert, work item, proposal, custody follow-up or trade-in is open.", null, [])
   // A failing check reads as the problem, not the condition it checks.
-  return result("CLOSE", "strong", "Finished order still has loose ends", "fail",
+  return result("CLOSE", "strong", title, "fail",
     `The order is ${str(bundle.order.details.cancelled_at) ? "cancelled" : "delivered"} but ${open.length === 1 ? "one record is" : `${open.length} records are`} still open: ${countLabels(open)}.`,
     "show_person", open)
 }
@@ -513,6 +514,22 @@ export function buildFleet(bundles: Bundle[]): Fleet {
     }
   }
   return { dutiesByDriver }
+}
+
+/**
+ * A failing check reads as the problem, not the condition it checks: these titles replace the
+ * catalogue's on a fail. A pass (and the Rules page) keeps the catalogue's positive wording.
+ */
+const FAIL_TITLE: Partial<Record<RuleId, string>> = {
+  R1: "No signed release for this pickup",
+  R3: "Driver positioning skips the driver's previous duty",
+  R7: "Delivery promise differs from the customer's request",
+  R10: `No live position for ${STALE_TRACKING_HOURS} h while the car is moving`,
+  R11: "Pickup slot passed with no pickup recorded",
+  R12: "Latest ETA is after the delivery promise",
+  R13: "Positioning cost has no travel reservation",
+  CLOSE: "Finished order still has loose ends",
+  NEXT: "A scheduled check is overdue",
 }
 
 /** Every rule with its strength, what it checks and its first action: the Rules page lists these. */
