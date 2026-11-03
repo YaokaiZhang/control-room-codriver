@@ -43,7 +43,7 @@ export function EntityPage({ kind, params }: { kind: EntityKind; params: Promise
       {view.notes.map((note) => <p className="note-text" key={note}>{note}</p>)}
       <section className="sec">
         <SectionHead title="Orders" count={view.cards.length} />
-        {view.cards.length === 0 && <Empty>No order in this snapshot involves this {index.noun}.</Empty>}
+        {view.cards.length === 0 && <Empty>No orders for this {index.noun}.</Empty>}
         <ul className="cards">{view.cards.map((card) => <li key={card.id}>
           {view.roles[card.id] && <p className="card-role">{view.roles[card.id]}</p>}
           <OrderTile card={card} />

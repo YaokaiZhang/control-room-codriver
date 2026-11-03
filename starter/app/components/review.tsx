@@ -115,7 +115,7 @@ function FindingCard({ finding, orderId, samePage }: { finding: ReviewFinding; o
 /** One line on what the reviewer did, for the compact preview and the panel head. */
 export function reviewLine(review: OrderReview): string {
   if (review.status !== "reviewed") return "Not reviewed yet"
-  return review.findings.length ? `${review.findings.length} ${review.findings.length === 1 ? "finding" : "findings"}` : "No conflict"
+  return review.findings.length ? `${review.findings.length} ${review.findings.length === 1 ? "finding" : "findings"}` : "Nothing to add"
 }
 
 /** `shown`: findings already shown as proposals (with their evidence); the rest are listed here. */

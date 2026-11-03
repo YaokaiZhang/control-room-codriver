@@ -176,7 +176,7 @@ export function verdictFor(evaluation: Evaluation, review: ReviewSignal | null =
   // first action is a reviewer pass fired, and the done review found nothing to act on.
   // The reason says so rather than claiming every check passed.
   const cleared = reviewed ? rules.filter((row) => row.outcome === "fail" && row.firstAction === "reviewer_pass") : []
-  const clearedNote = cleared.map((row) => `The reviewer cleared ${row.id}: ${sentence(row.detail)}.`)
+  const clearedNote = cleared.map((row) => `The reviewer cleared “${row.title}”: ${sentence(row.detail)}.`)
   const others = rules.length - cleared.length
   const gapNote = `${gaps === 1 ? "one gap" : `${gaps} gaps`} couldn't be checked`
   const ruleNote = cleared.length

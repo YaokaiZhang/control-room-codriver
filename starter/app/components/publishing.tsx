@@ -49,7 +49,7 @@ const STAGE_TEXT = (publication: Publication): string => {
   }
   if (publication.stage === "confirm") return "Not on the market yet, waiting for your yes"
   if (publication.stage === "unposted") return "Not on the market yet"
-  return "Past the market"
+  return "Driver booked"
 }
 
 /** The order's publishing state and, when Solved, the rewrites to approve. `bare`: the situation card above holds the buttons. */
@@ -68,8 +68,8 @@ export function PublishingBlock({ orderId, publication, group, calls, bare = fal
   const canPublish = publication.stage === "unposted" && group === "normal"
   if (publication.stage === "posted" && !review) return null
   return <div className="checks-block publishing" id="publishing">
-    <h3>{review ? "Fixed, review it" : "Driver market"}</h3>
-    <p className="publishing-stage"><Icon name="offer" className={publication.stage === "market" ? "tone-accent" : "tone-neutral"} />{STAGE_TEXT(publication)}</p>
+    <h3>{review ? "Waiting for your yes" : "Driver market"}</h3>
+    {(publication.stage !== "unposted" || canPublish) && <p className="publishing-stage"><Icon name="offer" className={publication.stage === "market" ? "tone-accent" : "tone-neutral"} />{STAGE_TEXT(publication)}</p>}
     {publication.check?.demanding && <p className="publishing-filter">{publication.check.reasons.map((reason) => <Pill key={reason} tone="warn">{reason}</Pill>)}</p>}
     {review && <>
       <ol className="rewrites">

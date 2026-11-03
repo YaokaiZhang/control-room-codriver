@@ -35,6 +35,8 @@ export type Decision = "acts alone" | "needs a yes" | "propose only"
 export type PolicyRow = {
   id: PolicyRowId
   contact: string
+  /** Who is contacted, in the Rules page's words when the prompt's wording is too technical. */
+  shown?: string
   action: string
   decision: Decision
   /** The contact types the row covers. */
@@ -60,14 +62,14 @@ export const CONTACT_TYPE_LABEL: Record<ContactType, string> = {
 
 export const POLICY: PolicyRow[] = [
   {
-    id: "site-routine", contact: "Third-party site or seller's site (not the paying customer)", action: "Routine question or call", decision: "acts alone",
+    id: "site-routine", contact: "Third-party site or seller's site (not the paying customer)", shown: "Third-party site or seller", action: "Routine question or call", decision: "acts alone",
     contactTypes: ["third_party_site"], actionType: "question",
-    agentDoes: "Calls the site's contact on record: the endpoint contact, then the site profile's pickup email. With neither there is no call and no proposal; the gap is listed under couldn't check.",
+    agentDoes: "Calls the site contact on the order, or else the site's pickup email. If neither exists, nothing happens and the order shows the contact as missing.",
   },
   {
     id: "driver-routine", contact: "Driver", action: "Routine question or call", decision: "acts alone",
     contactTypes: ["driver"], actionType: "question",
-    agentDoes: "Calls the assigned driver by driver ID.",
+    agentDoes: "Calls the assigned driver.",
   },
   {
     id: "operator-question", contact: "Operator", action: "Clarifying question in the app", decision: "acts alone",
@@ -75,7 +77,8 @@ export const POLICY: PolicyRow[] = [
     agentDoes: "Asks the operator in the app; the order waits in Needs action until the question is answered or dismissed.",
   },
   {
-    id: "customer-side", contact: "Customer side: the paying customer, a contact the customer gave us (stated_by CUSTOMER_ORDER_INPUT), or a site the customer owns", action: "Any contact", decision: "propose only",
+    id: "customer-side", contact: "Customer side: the paying customer, a contact the customer gave us (stated_by CUSTOMER_ORDER_INPUT), or a site the customer owns",
+    shown: "Customer side: the paying customer, a contact the customer gave us, or a site the customer owns", action: "Any contact", decision: "propose only",
     contactTypes: ["paying_customer", "customer_given_contact", "customer_owned_site"], actionType: "question",
     agentDoes: "Never makes the contact (the one exception is the pickup-readiness call below). It drafts the script with the evidence; approving hands the contact to the operator, who records the answer.",
   },
@@ -88,9 +91,10 @@ export const POLICY: PolicyRow[] = [
     // ADR 0001, amendment of 2026-10-24: the brief asks for pickup-readiness calls to the seller or pickup place.
     id: "pickup-readiness",
     contact: "The order's pickup place or pickup contact on the customer side: a site the customer owns, or a pickup contact the customer gave us (never the paying customer)",
+    shown: "The pickup place or pickup contact on the customer side (never the paying customer)",
     action: "Pickup-readiness call: is the car ready, are the papers and keys there; call back if nobody answers", decision: "acts alone",
     contactTypes: ["customer_owned_site", "customer_given_contact"], actionType: "pickup_readiness", reviewer: false,
-    agentDoes: "Calls the pickup contact on record with the fixed tier-1 pickup questions, and calls back if nobody answers. Anything else for that contact stays propose only, and a change learned on the call still needs a yes.",
+    agentDoes: "Calls the pickup contact on record with the standard pickup questions (car ready, papers and keys there), and calls back if nobody answers. Anything else for that contact stays propose only, and a change learned on the call still needs a yes.",
   },
 ]
 

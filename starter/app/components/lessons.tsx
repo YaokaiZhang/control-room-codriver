@@ -17,7 +17,7 @@ const AGENTS: { agent: LessonView["agent"]; label: string }[] = [{ agent: "revie
 const AGENT_LABEL = Object.fromEntries(AGENTS.map((row) => [row.agent, row.label])) as Record<LessonView["agent"], string>
 const STATUS: Record<LessonView["status"], { label: string; tone: Tone }> = {
   candidate: { label: "Waiting for your yes", tone: "warn" },
-  approved: { label: "In the prompt", tone: "ok" },
+  approved: { label: "In use", tone: "ok" },
   rejected: { label: "Rejected", tone: "neutral" },
   retired: { label: "Retired", tone: "neutral" },
 }
@@ -37,10 +37,10 @@ function Tags({ lesson }: { lesson: LessonView }) {
     : <Pill key={tag}>{CARD_KIND[tag] ?? tag}</Pill>)}</span>
 }
 
-/** One source mistake: the operator's note and the order when known (ticket 01), else its id. */
+/** One source mistake: the operator's note and the order when known (ticket 01). */
 function Source({ source }: { source: MistakeSource }) {
   return <li>
-    {source.orderId && source.reference ? <Link className="ref-link" href={`/orders/${encodeURIComponent(source.orderId)}`}>{source.reference}</Link> : <code>{source.id}</code>}
+    {source.orderId && source.reference ? <Link className="ref-link" href={`/orders/${encodeURIComponent(source.orderId)}`}>{source.reference}</Link> : "Correction"}
     {source.note && <span> · {source.note}</span>}
   </li>
 }
@@ -112,13 +112,13 @@ export function Lessons() {
 
   return <section className="rules-section" id="lessons" aria-labelledby="lessons-head">
     <h2 id="lessons-head">Lessons</h2>
-    <p>What the agents learned from your corrections. Only lessons you approve reach their prompts{view ? `, at most ${view.max} per agent` : ""}.</p>
+    <p>What the agents learned from your corrections. Only lessons you approve are used{view ? `, at most ${view.max} per agent` : ""}.</p>
     {error && <p className="queue-error" role="alert">{error}.</p>}
-    {view && <p className="lesson-counts">{AGENTS.map(({ agent, label }) => `${label}: ${approved.filter((lesson) => lesson.agent === agent).length} of ${view.max}`).join(" · ")}</p>}
+    {view && approved.length > 0 && <p className="lesson-counts">{AGENTS.map(({ agent, label }) => `${label}: ${approved.filter((lesson) => lesson.agent === agent).length} of ${view.max}`).join(" · ")}</p>}
     {view && !lessons.length && <p className="empty">No lessons yet. One is proposed after you correct the same kind of mistake a few times.</p>}
     {waiting.length > 0 && <div className="lesson-list">{waiting.map(card)}</div>}
     {approved.length > 0 && <>
-      <h3 className="rules-sub">In the prompts</h3>
+      <h3 className="rules-sub">In use</h3>
       <div className="lesson-list">{approved.map(card)}</div>
     </>}
     {past.length > 0 && <More label={`Rejected and retired (${past.length})`}><div className="lesson-list">{past.map(card)}</div></More>}

@@ -129,11 +129,9 @@ function templateReply(input: SuggestInput): string {
   return `${GREETING(input)}\n\n${lines.join(" ")}\n\n${SIGN_OFF}`
 }
 
-function templateNote(input: SuggestInput): string {
-  if (input.orders.length) {
-    const first = input.orders.find((order) => order.steps.length && order.group === "needs_action") ?? input.orders[0]
-    return first.headline ? `${first.reference}: ${first.headline}.` : `${first.reference}: ${first.reason}.`
-  }
+/** No note when the thread has linked orders: their cards, shown right below, already say it. */
+function templateNote(input: SuggestInput): string | null {
+  if (input.orders.length) return null
   if (input.thread.linkState === "NO_ORDER_REQUIRED") return "No order is needed: answer the question as general guidance."
   return "Not linked to an order yet: ask for the reference, or link the order once you know it."
 }

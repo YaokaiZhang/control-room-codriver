@@ -10,6 +10,7 @@ import type { Group, PlannedAction, RuleResult, Urgency } from "@/lib/engine/che
 import type { Call, CallLineView } from "@/lib/engine/calls"
 import type { Proposal } from "@/lib/engine/proposals"
 import type { Publication } from "@/lib/engine/publishing"
+import { capital, plainName } from "./names"
 
 export type SituationInput = {
   group: Group
@@ -56,8 +57,16 @@ const sentence = (text: string) => { const t = stop(text); return !t ? "" : /^\S
 const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 /** The first clause of a long instruction: "Ask the receiver for X; review Y" -> "Ask the receiver for X". */
 const firstClause = (text: string) => stop(text.split(/;\s|\.\s/)[0] ?? text)
-/** "Adrian Alderbrook, stock control" -> "Adrian Alderbrook"; an address stays as it is. */
-export const shortName = (name: string | null | undefined, fallback = "the contact") => (name ? name.split(",")[0].trim() : "") || fallback
+/**
+ * "Adrian Alderbrook, stock control" -> "Adrian Alderbrook"; "The assigned driver, drv-331" -> "the assigned driver".
+ * An email address alone is not a name: the fallback (the callee's role) reads better.
+ */
+export const shortName = (name: string | null | undefined, fallback = "the contact") => {
+  const text = plainName(name, fallback)
+  return text.includes("@") ? fallback : text
+}
+/** Who is on a call line, by name, else by role. */
+const lineName = (line: CallLineView) => shortName(line.callee?.name ?? line.callee?.handle, line.line === "site" ? "the pickup site" : "the driver")
 const MAX_BODY = 190
 
 function clip(text: string, max = MAX_BODY): string {
@@ -102,11 +111,11 @@ export function ruleProblem(rule: RuleResult): { headline: string; situation: st
       const done = /^The order is (delivered|cancelled)/.exec(detail)?.[1] ?? "delivered"
       const open = /still open: (.+?)\.?$/.exec(detail)?.[1] ?? ""
       const items = open.split(", ").filter(Boolean)
-      const onlyProof = items.length > 0 && items.every((item) => /^proof submitted/.test(item))
+      const onlyProof = items.length > 0 && items.every((item) => /^proof to review/.test(item))
       const head = done === "cancelled" ? "Cancelled" : "Delivered"
       if (onlyProof) return { headline: `${head}, proof waits for review`, situation: null }
       const count = (/^The order is \w+ but (one|\d+) records?/.exec(detail)?.[1]) ?? String(items.length)
-      return { headline: `${head}, but ${count === "one" ? "one record is" : `${count} records are`} still open`, situation: open ? `Open: ${open}` : null }
+      return { headline: `${head}, but ${count === "one" ? "one record is" : `${count} records are`} still open`, situation: open ? `Still to close: ${open}` : null }
     }
     case "NEXT": return { headline: "A scheduled check is due", situation: detail.split("; ")[0] }
     default: return { headline: stop(rule.title), situation: detail }
@@ -141,10 +150,16 @@ function proposalStep(proposal: Proposal): Step | null {
   return null
 }
 
+/** The proposal's action as a suggestion; a customer-side contact is the operator's to make. */
+function suggestFor(proposal: Proposal): string {
+  return proposal.kind === "customer_contact" ? `Suggestion: contact ${shortName(proposal.contact.name)} yourself and record what they say`
+    : `Suggestion: ${lower(stop(proposal.action))}`
+}
+
 /** "Name: Says X" -> "Name says X"; "Name: Driver cannot X" -> "Driver cannot X". */
 export function whoSaid(name: string, claim: string): string {
   const text = stop(claim)
-  return /^(Says|Said|Asks|Asked|Wants|\w+ed)\b/.test(text) ? `${name} ${lower(text)}` : text
+  return /^(Says|Said|Asks|Asked|Wants|\w+ed)\b/.test(text) ? capital(`${name} ${lower(text)}`) : text
 }
 
 /** What the proposal is about, as what is wrong. A call result reads as who said what. */
@@ -156,9 +171,22 @@ function proposalHeadline(proposal: Proposal): string {
 
 const ringable = (line: CallLineView) => !!line.callee && (line.status === "to_call" || line.status === "callback" || line.status === "callback_due" || line.status === "on_request")
 
-const ringStep = (line: CallLineView): Step => ({ label: `Ring ${shortName(line.callee?.name ?? line.callee?.handle)} live`, do: "ring", line: line.line })
+const ringStep = (line: CallLineView): Step => ({ label: `Ring ${lineName(line)} live`, do: "ring", line: line.line })
 
 const openStep = (anchor: string, label: string): Step => ({ label, do: "open", anchor })
+
+/** What one open record is, after its verb: "Resolve the alert", "Waive the proof". */
+const RECORD_NOUN: Record<string, string> = {
+  proofs: "proof", documents: "document", endpoint_claims: "claim", alerts: "alert", work_items: "work item", incidents: "incident",
+  agent_proposals: "proposal", custody_assets: "custody follow-up", work_assignments: "trip", conversations: "thread",
+}
+
+/** Verb and object: "Resolve the alert", "Mark the work item done"; a verb that names its object stays. */
+function closeOne(verb: string, noun: string): string {
+  if (/ the /.test(verb)) return verb
+  const mark = /^Mark (.+)$/.exec(verb)
+  return mark ? `Mark the ${noun} ${mark[1]}` : `${verb} the ${noun}`
+}
 
 /** Closes what keeps a finished order open (the CLOSE rule's records): accept the proofs, or close them all. */
 function closeStep(rule: RuleResult): Step | null {
@@ -166,7 +194,7 @@ function closeStep(rule: RuleResult): Step | null {
   if (!records.length) return null
   const proofs = records.every((source) => source.collection === "proofs" && source.close === "Accept")
   const label = proofs ? (records.length === 1 ? "Accept the proof" : `Accept the ${records.length} proofs`)
-    : records.length === 1 ? `${records[0].close}: ${lower(records[0].label)}` : `Close all ${records.length} records`
+    : records.length === 1 ? closeOne(records[0].close!, RECORD_NOUN[records[0].collection] ?? "record") : `Close all ${records.length} records`
   return { label, do: "close", records: records.map((source) => ({ collection: source.collection, recordId: source.id })) }
 }
 export const openOrder: Step = { label: "Open the order", do: "open", anchor: "checks", full: true }
@@ -210,11 +238,13 @@ function needsAction(input: SituationInput): Situation {
 
   if (handover?.handover) {
     const note = handover.handover
-    const name = shortName(handover.callee.name ?? handover.callee.handle)
+    const name = shortName(handover.callee.name ?? handover.callee.handle, handover.line === "site" ? "the pickup site" : "the driver")
     const step: Step = { label: "Record what you learned", do: "handover", callId: handover.id, prompt: `What you learned (closes the handover with ${name})` }
+    // The keypad's "can answer, needs a conversation" is a menu option, not what went wrong.
+    const talk = /needs a conversation/i.test(note.summary)
     return {
-      headline: summaryHeadline(note.summary, name),
-      body: joinBody(`${name} handed it over from the ${handover.line} call`, `Suggestion: ${lower(stop(note.nextStep))}`),
+      headline: talk ? `${capital(name)} wants to talk it through` : summaryHeadline(note.summary, name),
+      body: joinBody(`Passed to you from the ${handover.line} call`, `Suggestion: ${lower(stop(note.nextStep))}`),
       step,
       others: uniqueSteps([...proposalSteps, ...lineSteps, ...dismissals, openStep("calls", "Read the call")], step),
     }
@@ -229,7 +259,7 @@ function needsAction(input: SituationInput): Situation {
     const open = RULE_OPEN[rule.id]
     const closing = closeStep(rule)
     const step = fromProposal ?? closing ?? (open ? openStep(open.anchor, open.label) : openOrder)
-    const suggest = proposal ? `Suggestion: ${lower(stop(proposal.action))}` : suggestion ? `Suggestion: ${lower(suggestion)}` : null
+    const suggest = proposal ? suggestFor(proposal) : suggestion ? `Suggestion: ${lower(suggestion)}` : null
     const more = decisions.length > 1 ? `Also: ${lower(ruleProblem(decisions[1]).headline)}` : null
     return {
       headline: problem.headline,
@@ -243,7 +273,7 @@ function needsAction(input: SituationInput): Situation {
     const proposal = forOperator[0]
     const step = proposalStep(proposal) ?? openStep(proposal.id, "Read the proposal")
     const situation = proposal.kind === "change" ? `Approving writes it to the order` : proposal.why
-    const suggest = proposal.kind === "change" ? null : `Suggestion: ${lower(stop(proposal.action))}`
+    const suggest = proposal.kind === "change" ? null : suggestFor(proposal)
     return {
       headline: proposalHeadline(proposal),
       body: joinBody(situation, suggest),
@@ -254,10 +284,10 @@ function needsAction(input: SituationInput): Situation {
 
   if (forPerson.length) {
     const line = forPerson[0]
-    const name = shortName(line.callee?.name ?? line.callee?.handle)
+    const name = lineName(line)
     const unreachable = line.latest?.outcome === "unreachable"
     return {
-      headline: unreachable ? `${name} can't be reached` : `The call with ${name} needs a person`,
+      headline: unreachable ? `${capital(name)} can't be reached` : `The call with ${name} needs a person`,
       body: joinBody(line.latest?.reason ?? null, suggestion ? `Suggestion: ${lower(suggestion)}` : null),
       step: openStep("calls", "See the call"),
       others: uniqueSteps([...lineSteps, openOrder], null),
@@ -291,7 +321,7 @@ function inProgress(input: SituationInput): Situation {
     ?? input.callLines.find((row) => row.status === "to_call")
   const topics = (row: CallLineView) => row.open.map((topic) => topic.title).join("; ") || row.latest?.reason || null
   if (line) {
-    const name = shortName(line.callee?.name ?? line.callee?.handle)
+    const name = lineName(line)
     const at = line.latest?.callbackAt ? new Date(line.latest.callbackAt).toISOString().slice(11, 16) : null
     const headline = line.status === "calling" ? `Calling ${name}`
       : line.status === "callback_due" ? `Calling ${name} back now`

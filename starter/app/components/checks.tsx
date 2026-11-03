@@ -12,7 +12,7 @@ import { ReviewBlock } from "./review"
 import { More, Pill } from "./ui"
 
 export const GROUP_LABEL: Record<Group, string> = {
-  needs_action: "Blocked", in_progress: "In progress", solved: "Fixed, review it", normal: "Normal", done: "Finished",
+  needs_action: "Blocked", in_progress: "In progress", solved: "Waiting for your yes", normal: "Normal", done: "Finished",
 }
 
 export function groupTone(group: Group, urgent = false): Tone {
@@ -20,7 +20,7 @@ export function groupTone(group: Group, urgent = false): Tone {
 }
 
 export function GroupPill({ group, urgent = false }: { group: Group; urgent?: boolean }) {
-  return <Pill tone={groupTone(group, urgent)}>{group === "normal" ? <><Icon name="check" size={13} />Checked · Normal</> : GROUP_LABEL[group]}</Pill>
+  return <Pill tone={groupTone(group, urgent)}>{group === "normal" ? <><Icon name="check" size={13} />Normal</> : GROUP_LABEL[group]}</Pill>
 }
 
 /** The folded record section on the order page that holds each collection. */
@@ -66,7 +66,7 @@ function RuleItem({ orderId, rule, samePage }: { orderId: string; rule: RuleResu
 }
 
 function plannedText(action: PlannedAction): string {
-  if (action.kind === "reviewer_pass") return "Reviewer pass"
+  if (action.kind === "reviewer_pass") return "AI review"
   const who = action.callee ? action.callee.name ?? action.callee.handle : null
   return action.kind === "site_call" ? `Site call to ${who ?? "the pickup site"}` : "Driver call"
 }
@@ -88,7 +88,8 @@ export function ChecksPanel({ orderId, checks, compact = false, led = false }: {
       <h2 className="checks-title">Checks</h2>
       {!led && <GroupPill group={checks.group} urgent={urgent} />}
     </div>
-    {!led && <p className={`checks-reason tone-${groupTone(checks.group, urgent)}`}>{checks.reason}</p>}
+    {/* On a Normal order the Reviewer row and the lists below already say it all. */}
+    {!led && checks.group !== "normal" && <p className={`checks-reason tone-${groupTone(checks.group, urgent)}`}>{checks.reason}</p>}
     {checks.publication && <PublishingBlock orderId={orderId} publication={checks.publication} group={checks.group} calls={checks.calls ?? []} bare={compact} />}
     {checks.planned.length > 0 && <div className="checks-block">
       <h3>Planned</h3>

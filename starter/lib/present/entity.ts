@@ -51,24 +51,25 @@ async function loadDriver(id: string): Promise<EntityView | null> {
     if (!assignments.length && !exposures.length && !reports.length) continue
     const live = assignments.find((row) => row.details.status !== "CANCELLED") ?? assignments[0]
     const parts: string[] = []
-    if (live && live.details.status !== "CANCELLED") parts.push(label(str(live.details.status)))
+    // The card's own status already says where a live assignment stands; the role adds only what it doesn't.
     if (assignments.some((row) => row.details.status === "CANCELLED")) parts.push(live && live.details.status !== "CANCELLED" ? "an earlier booking cancelled" : "Booking cancelled")
     for (const exposure of exposures) parts.push(`directed offer ${labelIn(str(exposure.details.status))}`)
     if (reports.length) parts.push("custody report filed")
     const at = str(live?.details.started_at) ?? str(live?.details.accepted_at) ?? str(exposures[0]?.details.shown_at) ?? bundle.order.createdAt
-    involved.push({ bundle, role: parts.join(" · "), at })
+    const role = parts.join(" · ")
+    involved.push({ bundle, role: role.charAt(0).toUpperCase() + role.slice(1), at })
   }
   involved.sort((a, b) => a.at.localeCompare(b.at))
   const cards = involved.map((item) => buildBoardCard(item.bundle))
   const statuses = involved.flatMap((item) => rows(item.bundle, "work_assignments").filter((row) => row.details.driver_id === id).map((row) => str(row.details.status) ?? ""))
   const facts: Fact[] = [
-    { label: "Home base", value: `${driver.homeCity}, ${driver.homeCountry}`, hint: "a home base is not a current location" },
+    { label: "Home base", value: `${driver.homeCity}, ${driver.homeCountry}`, hint: "not where they are now" },
     { label: "Status", value: bool(driver.details.active) === false ? "Inactive" : "Active" },
-    { label: "Assignments in this snapshot", value: statuses.length ? ["IN_PROGRESS", "ASSIGNED", "COMPLETED", "CANCELLED"].map((status) => [status, statuses.filter((item) => item === status).length] as const).filter(([, count]) => count).map(([status, count]) => `${count} ${labelIn(status)}`).join(" · ") : "none" },
+    { label: "Assignments", value: statuses.length ? ["IN_PROGRESS", "ASSIGNED", "COMPLETED", "CANCELLED"].map((status) => [status, statuses.filter((item) => item === status).length] as const).filter(([, count]) => count).map(([status, count]) => `${count} ${labelIn(status)}`).join(" · ") : "none" },
   ]
   return {
     snapshotAt, kind: "driver", kindLabel: KIND_LABEL.driver, id, title: driver.displayName, subtitle: null, facts,
-    notes: ["Orders are in the order the driver took them on. A prior duty's delivery city is a past observation, not where the driver is now."],
+    notes: ["Oldest first."],
     links: [], cards, roles: Object.fromEntries(involved.map((item) => [item.bundle.order.id, item.role])),
   }
 }
@@ -83,13 +84,14 @@ async function loadCustomer(id: string): Promise<EntityView | null> {
   const facts: Fact[] = [
     { label: "Account", value: label(customer.accountTier) },
     { label: "Country", value: customer.country },
-    { label: "Orders in this snapshot", value: cards.length ? `${cards.length} · ${laneCounts(cards)}` : "none" },
+    { label: "Orders", value: cards.length ? laneCounts(cards) : "none" },
   ]
   return {
     snapshotAt, kind: "customer", kindLabel: KIND_LABEL.customer, id, title: customer.name, subtitle: null, facts,
-    notes: siteRows.length ? ["A site profile associated with this account does not grant access to every order using that site."] : [],
+    notes: siteRows.length ? ["Orders at these sites may belong to other customers."] : [],
     links: siteRows.map((site) => ({ label: site.name, href: `/sites/${site.id}`, hint: `${label(site.kind)} · ${site.city}, ${site.country}` })),
-    cards, roles: Object.fromEntries(own.map((bundle) => [bundle.order.id, "Contracting customer"])),
+    // Every order on a customer's page is theirs: a role line would say nothing.
+    cards, roles: {},
   }
 }
 
@@ -112,19 +114,18 @@ async function loadSite(id: string): Promise<EntityView | null> {
   const cards = laneSorted(involved.map((item) => buildBoardCard(item.bundle)))
   const d = site.details
   const facts: Fact[] = [
-    { label: "Kind", value: label(site.kind) },
     { label: "Address", value: `${str(d.address_line1) ?? "Street not recorded"}, ${site.city}, ${site.country}` },
     { label: "Hours", value: hoursText(d.opening_hours) ?? "Not recorded", hint: str(d.timezone) ? `local time, ${str(d.timezone)}` : null },
     { label: "Handover", value: str(d.handover_mode) ? label(str(d.handover_mode)) : "Not recorded", hint: num(d.advance_notice_minutes) ? `${num(d.advance_notice_minutes)} min advance notice` : null },
     { label: "Signed release", value: bool(d.requires_signed_release) == null ? "Not recorded" : bool(d.requires_signed_release) ? "Required" : "Not required" },
     { label: "Pickup contact", value: str(d.pickup_contact_email) ?? "Not recorded", mono: !!str(d.pickup_contact_email) },
-    { label: "Orders in this snapshot", value: cards.length ? `${cards.length} · ${laneCounts(cards)}` : "none" },
+    { label: "Orders", value: cards.length ? laneCounts(cards) : "none" },
   ]
   const notes = [
     str(d.pickup_access_note) ? `Pickup procedure: ${str(d.pickup_access_note)}` : null,
     str(d.delivery_access_note) && str(d.delivery_access_note) !== str(d.pickup_access_note) ? `Delivery procedure: ${str(d.delivery_access_note)}` : null,
     str(d.release_document_rule) ? `Release rule: ${str(d.release_document_rule)}` : null,
-    "A standing site procedure is not a confirmation for a specific car, key set or appointment. Each order's endpoint detail records what was checked for that order.",
+    "These are the site's usual rules, not a confirmation for any one car. Check each order for what was confirmed.",
   ].filter((note): note is string => !!note)
   const customerLink = site.customerId ? await db.select({ id: customers.id, name: customers.name }).from(customers).where(eq(customers.id, site.customerId)).limit(1) : []
   return {

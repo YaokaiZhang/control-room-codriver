@@ -159,7 +159,7 @@ function CallCard({ call }: { call: Call }) {
         {live ? <Pill tone="accent" dot>{STATE_LABEL[call.state]}</Pill> : outcome && <Pill tone={outcome.tone}>{outcome.label}</Pill>}
       </div>
     </div>
-    <p className="call-reason">{call.reason}</p>
+    <p className="call-reason">About: {call.reason.replace(/^Callback \(attempt \d+\)\. /, "")}</p>
     {live && call.answerer === "live" && call.state === "ringing" && <p className="call-reason tone-accent">Ringing on the {PHONE_NAME[call.line]} page</p>}
     {call.summary && !call.handover && <p className="call-summary">{call.summary}{call.callbackAt && call.outcome === "callback" ? ` Callback at ${demoTime(call.callbackAt)}.` : ""}</p>}
     {call.handover && <HandoverView call={call} />}

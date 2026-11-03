@@ -41,7 +41,7 @@ export default function NeedsActionBoard() {
   const waiting = approvals?.waiting.length ?? 0
   return <QueueBoard board="attention" filters={FILTERS} place={place} sort={byEmergency}
     tools={waiting > 0 && <button type="button" className={`btn btn-s ${batch ? "btn-primary" : "btn-tertiary"} queue-batch`} aria-pressed={batch} onClick={() => setBatch((value) => !value)}>
-      {batch ? "Close batch approval" : `Approve ${waiting} in batch`}
+      {batch ? "Done approving" : `Approve ${waiting} agent ${waiting === 1 ? "proposal" : "proposals"}`}
     </button>}
     aside={batch && approvals ? <BatchApproval queue={approvals} onClose={() => setBatch(false)} /> : null} />
 }

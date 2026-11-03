@@ -64,7 +64,7 @@ test("an order whose failed reviewer-pass rule the reviewer cleared says so; its
   const order = find((await engine.apply({ type: "review" })).orders, "CD-420338")
   assert.equal(order.review.findings.length, 0)
   assert.equal(order.group, "normal", "Normal: it passed the rules' first action, the reviewer")
-  assert.match(order.reason, /The reviewer cleared R7: The promise .* differs from the slot the customer requested/)
+  assert.match(order.reason, /The reviewer cleared “Delivery promise differs from the customer.s request”: The promise .* differs from the slot the customer requested/)
   assert.doesNotMatch(order.reason, /All \d+ checks passed|The rules found nothing to act on/)
 })
 

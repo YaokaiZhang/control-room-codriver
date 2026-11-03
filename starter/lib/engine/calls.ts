@@ -42,6 +42,7 @@ import { latestEta } from "./eta"
 import { isFinished, movingAssignments, selectedPromise } from "./order-facts"
 import type { Proposal } from "./proposals"
 import type { TurnCheck, TurnPath } from "./voice-agent"
+import { capital, plainName } from "@/lib/present/names"
 
 export type CallLine = "site" | "driver"
 export type CallState =
@@ -370,7 +371,7 @@ function zoneOf(bundle: Bundle, line: CallLine): string {
 }
 
 function who(callee: CallCallee): string {
-  return callee.name ? callee.name.split(",")[0] : callee.handle
+  return callee.name ? plainName(callee.name) : callee.handle
 }
 
 /** What the person said on the call, in order: claims, changes (as claims) and escalations. */
@@ -448,17 +449,18 @@ export function localToUtc(local: string, zone: string, around: string): string 
 function ending(call: Call, outcome: CallOutcome, text: string, extra: { escalation?: string | null } = {}): AgentStep {
   const { claims, changes } = said(call)
   const name = who(call.callee)
-  const summary = outcome === "resolved" ? `${name}: ${claims.length ? claims.join("; ") : "nothing to report"}.`
-    : outcome === "handover" ? `${name}: ${extra.escalation ?? "needs a conversation"}. A person should follow up.`
+  const Name = capital(name)
+  const summary = outcome === "resolved" ? `${Name}: ${claims.length ? claims.join("; ") : "nothing to report"}.`
+    : outcome === "handover" ? `${Name}: ${extra.escalation ?? "needs a conversation"}. A person should follow up.`
     : outcome === "unreachable" ? `No answer from ${name} after ${call.attempt} attempts.`
-    : call.path.includes("declined") ? `${name} declined the call.`
-    : call.path.includes("no_answer") ? `${name} did not answer.`
+    : call.path.includes("declined") ? `${Name} declined the call.`
+    : call.path.includes("no_answer") ? `${Name} did not answer.`
     : `${name} was busy and asked for a callback.`
   // An escalation nobody could talk through (no voice agent, or a simulated callee that cannot talk) is a tier-3 handover too.
   const handover: HandoverNote | undefined = outcome === "handover" ? {
     question: `${extra.escalation ?? "The callee needs a conversation"}: what does the order need now?`,
     nextStep: `Call ${name} back (${call.topics.map((topic) => topic.title).join("; ") || "the call's topics"}), then record what you learned.`,
-    summary: `${name}: ${extra.escalation ?? "needs a conversation"}.`,
+    summary: `${Name}: ${extra.escalation ?? "needs a conversation"}.`,
   } : undefined
   return { kind: "ended", outcome, text: summary, summary, claims, changes, ...(handover ? { handover } : {}) }
 }
@@ -517,7 +519,7 @@ export function agentTurn(call: Call, now: string, tier2: boolean, lastEvent: St
 function hungUp(call: Call): AgentStep {
   const latest = [...call.transcript].reverse().find((line) => line.check && !line.check.failed)?.check
   const learned = latest ? ` So far: ${latest.summary}` : ""
-  const summary = `${who(call.callee)} hung up during the voice call.${learned} A person should follow up.`
+  const summary = `${capital(who(call.callee))} hung up during the voice call.${learned} A person should follow up.`
   const { claims, changes } = tier2Said(call)
   return { kind: "ended", outcome: "handover", text: summary, summary, claims, changes,
     handover: { question: latest?.openQuestion ?? "The callee hung up before the problem was settled.", nextStep: latest?.nextStep ?? `Call ${who(call.callee)} back.`, summary } }
@@ -550,7 +552,7 @@ export function refuseInput(call: Call, input: CalleeInput): string | null {
 
 /** The stored event for a callee's input. */
 export function calleeEvent(call: Call, input: CalleeInput, base: Pick<StoredCallEvent, "callId" | "orderId" | "seq" | "at" | "wallAt">, seconds: number): StoredCallEvent {
-  const name = who(call.callee)
+  const name = capital(who(call.callee))
   switch (input.type) {
     case "answer": return { ...base, by: "callee", kind: "answered", text: `${name} answered.`, data: { seconds } }
     case "decline": return { ...base, by: "callee", kind: "declined", text: `${name} declined the call.`, data: { seconds } }
@@ -784,7 +786,7 @@ export function orderCalls(bundle: Bundle, planned: PlannedAction[], proposals: 
     let text: string
     if (latest && latest.state !== "ended") {
       status = "calling"
-      text = `Calling ${name} (tier ${latest.tier}): ${latest.reason}`
+      text = `Calling ${name}: ${latest.reason}`
     } else if (latest?.outcome === "handover" && latest.handover && !latest.handover.closed) {
       // An open handover holds the line: no new call until the operator has acted.
       status = "handover"

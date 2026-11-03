@@ -48,12 +48,12 @@ export default function RulesPage() {
       <ol className="rules-list">{POLICY.map((row) => <li className="rule-row" id={row.id} key={row.id}>
         <dl>
           <dt>Who is contacted</dt>
-          <dd className="rule-name">{row.contact}</dd>
-          <dd className="rule-types">{row.contactTypes.length === CONTACT_TYPES.length
-            ? <Pill>Any contact type</Pill>
-            : row.contactTypes.map((type) => <Pill key={type}>{CONTACT_TYPE_LABEL[type]}</Pill>)}</dd>
+          <dd className="rule-name">{row.shown ?? row.contact}</dd>
+          {/* The types only add something when a row covers several of them. */}
+          {row.contactTypes.length > 1 && row.contactTypes.length < CONTACT_TYPES.length &&
+            <dd className="rule-types">{row.contactTypes.map((type) => <Pill key={type}>{CONTACT_TYPE_LABEL[type]}</Pill>)}</dd>}
         </dl>
-        <dl><dt>Kind of action</dt><dd>{row.action}</dd><dd><Pill>{row.id}</Pill></dd></dl>
+        <dl><dt>Kind of action</dt><dd>{row.action}</dd></dl>
         <dl><dt>The agent</dt><dd><Pill tone={DECISION_TONE[row.decision]}>{row.decision}</Pill></dd><dd>{row.agentDoes}</dd></dl>
       </li>)}</ol>
     </section>
@@ -66,7 +66,7 @@ export default function RulesPage() {
         {ACTIONS.map((action) => {
           const row = policyFor(type, action.type)
           return <dl key={action.type}><dt>{action.label}</dt><dd>
-            <Link className="policy-link" href={`#${row.id}`}><Pill tone={DECISION_TONE[row.decision]}>{row.decision}</Pill><span>{row.id}</span></Link>
+            <Link className="policy-link" href={`#${row.id}`}><Pill tone={DECISION_TONE[row.decision]}>{row.decision}</Pill></Link>
           </dd></dl>
         })}
       </li>)}</ol>
@@ -77,7 +77,8 @@ export default function RulesPage() {
       <p>Run on every order at the demo clock. A strong rule that fails takes its first action.</p>
       <Cols names={["Strong rule", "First action"]} />
       <ol className="rules-list">{strong.map((rule) => <RuleRow key={rule.id} rule={rule} />)}</ol>
-      <h3 className="rules-sub">Weak signals never fail; they list what couldn&apos;t be checked.</h3>
+      <h3 className="rules-sub">Weak signals</h3>
+      <p>These never block an order. When one can&apos;t be confirmed, the agent calls the site if pickup is within 48 h and a contact is known.</p>
       <Cols names={["Weak signal", "First action"]} />
       <ol className="rules-list">{weak.map((rule) => <RuleRow key={rule.id} rule={rule} />)}</ol>
     </section>

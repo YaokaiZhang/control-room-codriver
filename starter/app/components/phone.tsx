@@ -225,7 +225,6 @@ const clock = (seconds: number) => {
   const s = Math.max(0, Math.round(seconds))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }
-const firstName = (call: Call) => call.callee.name ? call.callee.name.split(",")[0] : call.callee.handle
 
 const PHONE_LABEL: Record<PhonePersona, string> = { site: "Site phone", driver: "Driver phone" }
 
@@ -279,7 +278,7 @@ export function PhoneApp({ persona }: { persona: PhonePersona | "operator" }) {
     {(refusal || error) && <p className="phone-error" role="alert">{refusal ?? error}</p>}
     {view && view.queued.length > 0 && <section className="phone-queue" aria-label="Calls waiting">
       <h2>Waiting ({view.queued.length})</h2>
-      <ul>{view.queued.map((row) => <li key={row.id}><Icon name="waiting" className="tone-accent" /><span><b>{row.reference}</b> · {row.callee.name ? row.callee.name.split(",")[0] : row.callee.handle}<br /><span className="phone-queue-why">{row.reason}</span></span></li>)}</ul>
+      <ul>{view.queued.map((row) => <li key={row.id}><Icon name="waiting" className="tone-accent" /><span><b>{row.reference}</b> · {row.callee.name ? row.callee.name.split(",")[0] : row.callee.handle}</span></li>)}</ul>
       <p>The phone takes one call at a time. The next one rings when this call ends.</p>
     </section>}
     {as === "driver" && <DriverJobsList />}
@@ -292,7 +291,7 @@ function CallerId({ call }: { call: Call }) {
     <span className="phone-avatar"><Icon name="bot" size={30} /></span>
     <b className="phone-from">Bahn control room</b>
     <span className="phone-ref">{call.reference}{call.car ? ` · ${call.car}` : ""}</span>
-    <span className="phone-to">Delivery assistant calling {firstName(call)}{call.attempt > 1 ? ` · attempt ${call.attempt}` : ""}</span>
+    <span className="phone-to">Delivery assistant{call.attempt > 1 ? ` · attempt ${call.attempt}` : ""}</span>
   </div>
 }
 
@@ -301,8 +300,8 @@ function RingingScreen({ call, view, ignored, onIgnore, act }: { call: Call; vie
   const left = view.ringsOutAt ? Math.ceil((new Date(view.ringsOutAt).getTime() - now) / 1000) : null
   return <div className="phone-screen">
     <span className="phone-status"><span className="phone-ring-dot" aria-hidden="true" />{ignored ? "Ringing silently" : "Incoming call"}</span>
+    {/* The call's reason is the operator's wording (a rule that failed); the agent explains it on the call. */}
     <CallerId call={call} />
-    <p className="phone-reason">{call.reason}</p>
     <div className="phone-actions">
       <button type="button" className="btn btn-tertiary phone-decline" onClick={() => act({ type: "decline" })}><Icon name="close" />Decline</button>
       <button type="button" className="btn btn-primary phone-answer" onClick={() => act({ type: "answer" })}><Icon name="phone" />Answer</button>
@@ -332,7 +331,7 @@ function KeypadScreen({ call, playing, act, hangUp }: { call: Call; playing: boo
       <span><b>{call.reference}</b> · Bahn control room</span>
       <span className="phone-timer">{clock((now - new Date(answeredAt).getTime()) / 1000)}</span>
     </div>
-    <div className="phone-call-pills"><Pill tone="accent" dot>Tier {call.tier}</Pill>{playing && <Pill tone="accent">Speaking</Pill>}</div>
+    {playing && <div className="phone-call-pills"><Pill tone="accent">Speaking</Pill></div>}
     <p className="phone-prompt" aria-live="polite">{said?.text ?? "…"}</p>
     {asking && <ul className="phone-options" aria-label="Keypad options">
       {asking.options.map((option) => <li key={option.digit}><kbd>{option.digit}</kbd>{option.label}</li>)}
@@ -488,7 +487,7 @@ function Tier2Screen({ call, playing, stopPrompt, hangUp, sendVoice }: {
       <span><b>{call.reference}</b> · Bahn control room</span>
       <span className="phone-timer">{clock((now - new Date(answeredAt).getTime()) / 1000)}</span>
     </div>
-    <div className="phone-call-pills"><Pill tone="accent" dot>Tier 2</Pill><Pill tone={recording ? "warn" : "accent"}>{status}</Pill></div>
+    <div className="phone-call-pills"><Pill tone={recording ? "warn" : "accent"}>{status}</Pill></div>
     <p className="phone-prompt" aria-live="polite">{said?.text ?? "…"}</p>
     <div className="phone-talk-wrap">
       <button type="button" className="phone-talk" data-recording={recording || undefined} disabled={!canTalk && !recording}

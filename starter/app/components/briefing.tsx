@@ -7,7 +7,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
-import type { BriefingItem, ProseSegment } from "@/lib/engine/engine"
+import type { BriefingItem, DigestItem, ProseSegment } from "@/lib/engine/engine"
 import type { BriefingView } from "@/lib/present/types"
 import { CLOCK_EVENT } from "./demo-clock"
 import { Icon } from "./icons"
@@ -90,11 +90,22 @@ export function useBriefingFeed(enabled: boolean): BriefingFeed {
   return { unread, toasts, extra, dismiss }
 }
 
-/** "Morning digest", or a push's title. */
+/** How many Blocked orders are urgent. Urgency ranks Blocked; elsewhere the agent is already on it. */
+export function urgentBlocked(facts: DigestItem["facts"]): number {
+  return facts.needsAction.filter((line) => line.urgent).length
+}
+
+/** A digest's counts in a line ("36 blocked · 9 urgent · 20 in progress", zeros left out), or a push's text. */
 export function itemSummary(item: BriefingItem): string {
   if (item.kind === "push" || item.kind === "lesson") return item.text
   const { counts } = item.facts
-  return `${counts.needs_action} blocked · ${counts.urgent} urgent · ${counts.in_progress} in progress`
+  const urgent = urgentBlocked(item.facts)
+  const parts = [
+    counts.needs_action ? `${counts.needs_action} blocked` : null,
+    urgent ? `${urgent} urgent` : null,
+    counts.in_progress ? `${counts.in_progress} in progress` : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(" · ") : "Nothing blocked"
 }
 
 export function BriefingToasts({ feed }: { feed: BriefingFeed }) {

@@ -60,8 +60,6 @@ export const DIGEST_TIMEOUT_MS = 5_000
 
 // ── Formatting ────────────────────────────────────────────────────────────
 
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
-
 /** "10:00" on the digest's day, "22 Oct 09:00" on another (UTC, like the demo clock). */
 export function fmtDue(at: string, digestAt: string): string {
   const date = new Date(at)
@@ -93,30 +91,43 @@ function tidy(segments: ProseSegment[]): ProseSegment[] {
 
 const GREETING: Record<DigestFacts["slot"], string> = { "09:00": "Good morning.", "12:00": "Midday update.", "16:00": "Afternoon update." }
 
-/** The template prose: always correct, written from the facts by code. */
+/** "Overdue work item: Ask the receiver for X; do Y." -> "ask the receiver for X (overdue)". */
+export function moveText(text: string): string {
+  const work = /^(Overdue|Due) work item: ([^]*)$/.exec(text.trim())
+  const body = (work ? work[2] : text).split(/;|(?<=[.])\s/)[0].trim().replace(/[.]$/, "")
+  const lowered = /^[A-Z][a-z]/.test(body) ? body[0].toLowerCase() + body.slice(1) : body
+  return work?.[1] === "Overdue" ? `${lowered} (overdue)` : lowered
+}
+
+/**
+ * The template prose: always correct, written from the facts by code. The digest's
+ * count tiles already show the group counts and its change list shows what changed, so
+ * the opener only says how many Blocked orders are urgent and which come first.
+ * Urgency ranks Blocked orders; an urgent order the agent is already working on is not
+ * the operator's to start with.
+ */
 export function templateProse(facts: DigestFacts, note: string): DigestProse {
-  const { counts } = facts
-  const opener: ProseSegment[] = [{
-    text: `${GREETING[facts.slot]} ${plural(counts.needs_action, "order needs", "orders need")} a decision, ${counts.in_progress} ${counts.in_progress === 1 ? "is" : "are"} with the agent, `
-      + `${counts.solved} ${counts.solved === 1 ? "waits" : "wait"} for your yes on call results, `
-      + `${counts.normal} ${counts.normal === 1 ? "is" : "are"} checked normal and ${counts.done} ${counts.done === 1 ? "is" : "are"} finished.`,
-  }]
-  if (counts.urgent) {
-    const top = facts.urgent.slice(0, 3)
-    opener.push({ text: ` ${plural(counts.urgent, "order is", "orders are")} urgent${counts.urgent > top.length ? "; the most pressing are " : ": "}` }, ...listOf(top), { text: "." })
+  const blocked = facts.counts.needs_action
+  const urgentBlocked = facts.urgent.filter((row) => row.group === "needs_action")
+  const urgent = urgentBlocked.length
+  const opener: ProseSegment[] = [{ text: `${GREETING[facts.slot]} ` }]
+  if (!blocked) {
+    opener.push({ text: "Nothing is blocked." })
+  } else if (!urgent) {
+    opener.push({ text: blocked === 1 ? "The blocked order is not urgent." : `None of the ${blocked} blocked orders is urgent.` })
   } else {
-    opener.push({ text: " Nothing is urgent." })
+    const top = urgentBlocked.slice(0, 3)
+    const head = urgent === blocked
+      ? blocked === 1 ? "The blocked order is urgent" : `All ${blocked} blocked orders are urgent`
+      : `${urgent} of the ${blocked} blocked orders ${urgent === 1 ? "is" : "are"} urgent`
+    opener.push({ text: `${head}${urgent > top.length ? "; the most pressing are " : ": "}` }, ...listOf(top), { text: "." })
   }
-  const changes = facts.changes
-  if (changes && (changes.newNeedsAction.length || changes.leftNeedsAction.length)) {
-    opener.push({ text: ` Since ${facts.since ? fmtDue(facts.since, facts.at) : "the last digest"}, ${changes.newNeedsAction.length} new problems came up and ${changes.leftNeedsAction.length} were cleared.` })
-  }
-  const first = facts.urgent[0]
+  const first = urgentBlocked[0]
   const firstNeed = facts.needsAction[0]
   const firstMove: ProseSegment[] = first
-    ? [{ text: "Start with " }, { order: first }, { text: `: ${first.reasons[0]?.text.replace(/[.]$/, "") ?? "it is urgent"}.` }]
+    ? [{ text: "Start with " }, { order: first }, { text: `: ${first.reasons[0] ? moveText(first.reasons[0].text) : "it is urgent"}.` }]
     : firstNeed
-      ? [{ text: "Start with " }, { order: firstNeed }, { text: `: ${firstNeed.reason.split(/(?<=[.])\s/)[0].replace(/[.]$/, "")}.` }]
+      ? [{ text: "Start with " }, { order: firstNeed }, { text: `: ${moveText(firstNeed.reason)}.` }]
       : [{ text: "Nothing needs a decision; the agent is working through In progress." }]
   return { opener: tidy(opener), firstMove: tidy(firstMove), source: "template", note, cost: 0, cached: false }
 }
