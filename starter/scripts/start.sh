@@ -70,7 +70,7 @@ if [[ "$clean" == true ]]; then
   echo "Cleared .next"
 fi
 if [[ -z "$pids" ]]; then
-  setsid nohup npm run dev -- --webpack --port "$PORT" >"$LOG" 2>&1 </dev/null &
+  setsid nohup npm run dev -- --port "$PORT" >"$LOG" 2>&1 </dev/null &
   echo "Started on :$PORT, logging to $LOG"
 else
   echo "Already running. Use --restart to restart it."

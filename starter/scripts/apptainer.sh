@@ -114,7 +114,7 @@ start() {
     # re-evaluates arguments, so the directory and port go in as variables, not positional arguments.
     apptainer instance run --cleanenv --bind "$root" --bind "$RUNTIME" \
       --env "BAHN_STARTER=$starter,BAHN_PORT=$PORT,npm_config_cache=$RUNTIME/npm-cache,http_proxy=${http_proxy:-},https_proxy=${https_proxy:-},no_proxy=${no_proxy:-}" \
-      "$(sif $NODE_IMAGE)" bahn-web sh -c 'cd "$BAHN_STARTER" && exec npm run dev -- --webpack --port "$BAHN_PORT" --hostname 127.0.0.1'
+      "$(sif $NODE_IMAGE)" bahn-web sh -c 'cd "$BAHN_STARTER" && exec npm run dev -- --port "$BAHN_PORT" --hostname 127.0.0.1'
   fi
 
   step "Health"
