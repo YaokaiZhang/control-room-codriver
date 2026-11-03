@@ -23,6 +23,7 @@ import { Shell } from "./shell"
 import { dueText, SituationCard } from "./situation"
 import { CarPhoto, OpenItems, Pill, StagePill } from "./ui"
 import { useOverview } from "./use-overview"
+import { withPublication } from "@/lib/present/market"
 
 export type QueueFilter = { key: string; label: string; empty: string; loud?: boolean }
 
@@ -177,7 +178,8 @@ export function QueueBoard({ board, filters, place, sort, tagged = false, tools,
 }
 
 /** The selected order: who and where, what is wrong with its steps, then the evidence the steps act on. */
-function OrderPreview({ view, checks, position, total, onNext }: { view: RecordView; checks: OrderChecks | null; position: number; total: number; onNext: () => void }) {
+function OrderPreview({ view: record, checks, position, total, onNext }: { view: RecordView; checks: OrderChecks | null; position: number; total: number; onNext: () => void }) {
+  const view = withPublication(record, checks?.publication)
   const { header, story } = view
   const code = checks ? situationFor(checks) : null
   const situation = code && applyPlain(code, checks?.plain)

@@ -629,7 +629,7 @@ export function createEngine({ snapshot, store, reviews: reviewOptions, briefing
       const proposal = await findProposal(topic.id.slice("proposal:".length)).catch(() => null)
       if (!proposal || proposal.status === "answered" || proposal.status === "dismissed") continue
       carried.push(proposal)
-      const event = await eventFor(proposal, "answered", `Call result (${call.id}): ${answer}`, { answer, question: proposal.script, from })
+      const event = await eventFor(proposal, "answered", `Answer: ${answer}`, { answer, question: proposal.script, from })
       await store.appendProposalEvents([{ ...event, by: "agent" }])
     }
     const eta = call.line === "driver" ? reportedEta(call) : null

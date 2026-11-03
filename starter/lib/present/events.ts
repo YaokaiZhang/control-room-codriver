@@ -16,17 +16,39 @@ function pointName(bundle: Bundle, pointId: string): string | null {
   return where
 }
 
-function scalarChanges(changes: Record<string, unknown>, skip: string[] = []): string | null {
+/** A record id ("ops-evidence", "drv-331", "proof-x0af…"): never shown as a value. */
+const ID_LIKE = /^[a-z]+(-[a-z0-9]+)+$/
+
+/**
+ * The event's other fields as "reason: Replaced by bundle". Leaves out ids, times and
+ * yes/no flags (a flag reads as "true"/"false", which says nothing to an operator); a
+ * sentence stays as written, a code becomes words, an owner becomes their name.
+ */
+function scalarChanges(changes: Record<string, unknown>, skip: string[] = [], bundle?: Bundle): string | null {
   const parts = Object.entries(changes)
-    .filter(([key, value]) => !skip.includes(key) && !/(_id|_ids|_refs|_reference|_at)$/.test(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
-    .map(([key, value]) => `${humanize(key).toLowerCase()}: ${typeof value === "string" ? label(value) : String(value)}`)
+    .filter(([key]) => !skip.includes(key) && !/(_id|_ids|_refs|_reference|_at)$/.test(key))
+    .map(([key, value]): string | null => {
+      if (typeof value === "number") return `${humanize(key).toLowerCase()}: ${value}`
+      if (typeof value !== "string" || !value.trim()) return null
+      if (key === "owner") { const name = bundle?.dir.title(value); return name ? `owner ${name}` : null }
+      if (ID_LIKE.test(value)) return null
+      const text = /\s/.test(value.trim()) ? value.trim().replace(/[.]$/, "") : label(value)
+      return `${humanize(key).toLowerCase()}: ${text}`
+    })
+    .filter((part): part is string => !!part)
   return parts.length ? parts.join(" · ") : null
+}
+
+/** The kind of the record an event targets ("PICKUP_PHOTOS"), for events that do not repeat it. */
+function targetKind(bundle: Bundle, collection: string, id: string): string | null {
+  return str(rows(bundle, collection).find((row) => row.id === id)?.details.kind)
 }
 
 export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
   const { dir } = bundle
   const d = event.details
   const changes = obj(d.changes) ?? {}
+  const proofKind = () => label(str(changes.kind) ?? targetKind(bundle, "proofs", event.targetId))
   const actor = dir.resolve(d.actor_id, d.actor_type)
   const actorName = actor.kind === "system" ? null : actor.name
   const toState = str(d.to_state)
@@ -46,7 +68,7 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
       break
     case "order.readiness_assessed":
       text = "Readiness assessed"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "order.item_added":
       text = "Second item added to the order"
@@ -65,7 +87,7 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
       break
     case "plan.replaced":
       text = "Transport plan replaced"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "plan.cancelled":
       text = "Transport plan cancelled"
@@ -79,7 +101,7 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
       break
     case "offer.withdrawn":
       text = "Offer withdrawn"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "assignment.booked":
       text = `${actor.kind === "driver" ? actor.name : "A driver"} booked the gig`
@@ -112,24 +134,24 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
     }
     case "vehicle.custody_reported":
       text = `${actor.kind === "driver" ? actor.name : "Driver"} reported custody of the vehicle`
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "proof.require":
       text = `${label(str(changes.kind))} required`
       break
     case "proof.submitted":
-      text = `${label(str(changes.kind))} submitted${num(changes.file_count) ? ` (${num(changes.file_count)} files)` : ""}`
+      text = `${label(str(changes.kind))} submitted${num(changes.file_count) ? ` (${num(changes.file_count)} ${num(changes.file_count) === 1 ? "file" : "files"})` : ""}`
       break
     case "proof.approved":
-      text = `${label(str(changes.kind)) || "Proof"} approved`
+      text = `${proofKind() || "Proof"} approved`
       break
     case "proof.rejected":
-      text = `${label(str(changes.kind)) || "Proof"} rejected`
-      detail = scalarChanges(changes, ["kind"])
+      text = `${proofKind() || "Proof"} rejected`
+      detail = scalarChanges(changes, ["kind"], bundle)
       break
     case "proof.review":
-      text = "Proof reviewed"
-      detail = scalarChanges(changes)
+      text = `${proofKind() || "Proof"} ${toState === "REJECTED" ? "rejected" : toState === "APPROVED" ? "approved" : "reviewed"}`
+      detail = scalarChanges(changes, ["decision", "kind"], bundle)
       break
     case "proof.requirement_migrated":
       text = "Proof requirement moved to a replacement step"
@@ -138,38 +160,40 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
       text = `${label(str(changes.kind)) || "Cost"} claim submitted${num(changes.amount_cents) ? `, ${fmtMoney(num(changes.amount_cents), str(changes.currency) ?? "EUR")}` : ""}`
       break
     case "expense.reviewed":
-      text = `Cost claim ${labelIn(toState) || "reviewed"}`
-      detail = scalarChanges(changes)
+      text = `${label(str(changes.kind) ?? targetKind(bundle, "expenses", event.targetId)) || "Cost"} claim ${labelIn(toState) || "reviewed"}`
+      detail = scalarChanges(changes, ["decision", "kind"], bundle)
       break
     case "expense.auto_recorded":
       text = `${label(str(changes.kind)) || "Cost"} recorded automatically`
-      detail = scalarChanges(changes, ["kind"])
+      detail = scalarChanges(changes, ["kind"], bundle)
       break
     case "travel.booked":
       text = `${label(str(changes.kind)) || "Travel"} booked`
       break
     case "travel.rebooked":
       text = `${label(str(changes.kind)) || "Travel"} rebooked`
-      detail = scalarChanges(changes, ["kind"])
+      detail = scalarChanges(changes, ["kind"], bundle)
       break
     case "travel.arrival_reported":
       text = `${actor.kind === "driver" ? actor.name : "Driver"} reported arrival`
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
-    case "alert.raised":
-      text = `Alert raised: ${label(str(changes.signal))}`
+    case "alert.raised": {
+      const signal = str(changes.signal) ?? bundle.alerts.find((alert) => alert.id === event.targetId)?.signal ?? null
+      text = signal ? `Alert raised: ${label(signal)}` : "Alert raised"
       break
+    }
     case "alert.acknowledged":
       text = `Alert acknowledged${actorName ? ` by ${actorName}` : ""}`
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "alert.resolved":
       text = "Alert resolved"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "alert.dismissed":
       text = "Alert dismissed"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "document.verified":
       text = `${label(str(changes.kind)) || "Document"} verified`
@@ -179,7 +203,7 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
       break
     case "document.signed":
       text = `${label(str(changes.kind)) || "Document"} signed`
-      detail = scalarChanges(changes, ["kind"])
+      detail = scalarChanges(changes, ["kind"], bundle)
       break
     case "work_item.opened": {
       const what = label(str(changes.decision_code) ?? str(changes.kind))
@@ -189,15 +213,15 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
     }
     case "work_item.closed":
       text = "Work item closed"
-      detail = scalarChanges(changes)
+      detail = scalarChanges(changes, [], bundle)
       break
     case "endpoint.access_confirmed":
       text = `${label(str(changes.boundary)) || "Endpoint"} access confirmed${actorName ? ` by ${actorName}` : ""}`
-      detail = scalarChanges(changes, ["boundary"])
+      detail = scalarChanges(changes, ["boundary", "confirmed_field"], bundle)
       break
     case "endpoint.contact_confirmed":
       text = `${label(str(changes.boundary)) || "Endpoint"} contact confirmed${actorName ? ` by ${actorName}` : ""}`
-      detail = scalarChanges(changes, ["boundary"])
+      detail = scalarChanges(changes, ["boundary", "confirmed_field"], bundle)
       break
     case "endpoint.claim_recorded":
       text = `Claim recorded about the ${labelIn(str(changes.field)) || "endpoint"}`
@@ -233,11 +257,26 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
     case "site_visit.recorded":
       text = `Site visit recorded: ${labelIn(str(changes.outcome))}`
       break
+    case "work.opened": {
+      const what = label(targetKind(bundle, "work_items", event.targetId) ?? str(changes.decision))
+      text = what ? `Work item opened: ${what}` : "Work item opened"
+      detail = dir.title(changes.owner) ? `owner ${dir.title(changes.owner)}` : null
+      break
+    }
+    case "endpoint.instruction_verified": {
+      const endpoint = rows(bundle, "order_endpoint_details").find((row) => row.id === event.targetId)
+      text = `${label(str(endpoint?.details.boundary)) || "Handover"} instruction verified`
+      detail = str(changes.decision)
+      break
+    }
     default:
-      text = `${humanize(event.command)}${toState ? `: ${label(toState)}` : ""}`
-      detail = scalarChanges(changes)
+      // The state only when it adds something: "Work opened: Open" says it twice.
+      text = `${humanize(event.command)}${toState && toState !== "OPEN" ? `: ${label(toState)}` : ""}`
+      detail = scalarChanges(changes, [], bundle)
   }
 
+  // "owner Handover evidence" says nothing when Handover evidence is the actor shown beside it.
+  if (actorName && detail === `owner ${actorName}`) detail = null
   const named = actorName ? text.includes(actorName) : false
   return { id: event.id, at: event.recordedAt, text, actor: named ? null : actorName, detail, shared }
 }

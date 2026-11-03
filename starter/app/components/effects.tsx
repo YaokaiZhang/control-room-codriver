@@ -7,6 +7,7 @@
 
 import type { EffectEvent, EffectType, HistoryEntry } from "@/lib/engine/engine"
 import { fmtDateTime } from "@/lib/present/time"
+import { proposalEventText } from "./proposals"
 import { recordAnchor } from "./review"
 import { More, Pill } from "./ui"
 
@@ -19,6 +20,38 @@ const EFFECT_LABEL: Record<EffectType, string> = {
   operator_answer_recorded: "Operator answer recorded", cost_approved: "Cost approved", record_closed: "Record closed",
 }
 
+const LABELS = Object.values(EFFECT_LABEL)
+
+/**
+ * The change in plain words. Events stored before the line was shortened still carry the
+ * label prefix, "Committed by …" and record ids; the card shows the label and actor already.
+ */
+export function plainEffectText(text: string): string {
+  const label = LABELS.find((name) => text.startsWith(`${name}: `))
+  const body = (label ? text.slice(label.length + 2) : text)
+    .replace(/\.?\s*Committed by [^.]+\.\s*$/, "")
+    .replace(/\s+[a-z]+-x[0-9a-f]{8,}\b/g, "")
+  return body.charAt(0).toUpperCase() + body.slice(1)
+}
+
+/** The proposal title the engine puts before each of its history lines, read off its "proposed" line. */
+function titlePrefix(entry: HistoryEntry, history: HistoryEntry[]): string | null {
+  const proposed = history.find((row) => row.proposalId === entry.proposalId && row.kind === "proposed")
+  if (!proposed || proposed === entry) return null
+  let end = -1
+  for (let i = 0; i < Math.min(proposed.text.length, entry.text.length) && proposed.text[i] === entry.text[i]; i++) {
+    if (proposed.text.startsWith(": ", i)) end = i + 2
+  }
+  return end > 0 ? proposed.text.slice(0, end) : null
+}
+
+/** One history line without what its row or the line above already says. */
+function historyText(entry: HistoryEntry, history: HistoryEntry[]): string {
+  if (entry.kind === "effect") return plainEffectText(entry.text)
+  const prefix = entry.proposalId ? titlePrefix(entry, history) : null
+  return proposalEventText(prefix ? entry.text.slice(prefix.length) : entry.text)
+}
+
 export function EffectsBlock({ effects, history }: { effects: EffectEvent[]; history: HistoryEntry[] }) {
   if (!effects.length && !history.length) return null
   return <div className="checks-block" id="effects">
@@ -27,16 +60,16 @@ export function EffectsBlock({ effects, history }: { effects: EffectEvent[]; his
       <ul className="effect-list">{effects.map((event) => <li key={event.id} className="effect" id={recordAnchor(event.id)}>
         <div className="effect-head">
           <Pill tone="ok">{EFFECT_LABEL[event.type]}</Pill>
-          <span className="effect-at">{fmtDateTime(event.at, null, false)} · {BY_LABEL[event.by] ?? event.by}</span>
+          <span className="effect-at">{fmtDateTime(event.at)} · {BY_LABEL[event.by] ?? event.by}</span>
         </div>
-        <p className="effect-text">{event.text}</p>
+        <p className="effect-text">{plainEffectText(event.text)}</p>
       </li>)}</ul>
     </>}
     {history.length > 0 && <More label="History">
       <ol className="proposal-history">{history.map((entry, i) => <li key={i} className={entry.kind === "effect" ? "is-effect" : undefined}>
-        <span className="proposal-history-at">{fmtDateTime(entry.at, null, false)}</span>
+        <span className="proposal-history-at">{fmtDateTime(entry.at)}</span>
         <span className="proposal-history-by">{BY_LABEL[entry.by] ?? entry.by} · {entry.kind === "effect" ? "change" : entry.kind}</span>
-        <span className="proposal-history-text">{entry.text}</span>
+        <span className="proposal-history-text">{historyText(entry, history)}</span>
       </li>)}</ol>
     </More>}
   </div>

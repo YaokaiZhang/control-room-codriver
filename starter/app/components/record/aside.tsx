@@ -33,12 +33,11 @@ export function WorkPanel({ view }: { view: RecordView }) {
       <p className="entry-meta">
         <span>{alert.severity} severity</span>
         <span>Raised <When at={alert.triggeredAt} /></span>
-        {alert.owner && <span>Owner {alert.owner}</span>}
-        {alert.acknowledgedAt && <span>Acknowledged <When at={alert.acknowledgedAt} /></span>}
+        {alert.owner && alert.status !== "ACKNOWLEDGED" && <span>Owner {alert.owner}</span>}
+        {alert.acknowledgedAt && <span>Acknowledged{alert.status === "ACKNOWLEDGED" && alert.owner ? ` by ${alert.owner}` : ""} <When at={alert.acknowledgedAt} />{alert.status === "ACKNOWLEDGED" ? ", still open" : ""}</span>}
         {alert.resolvedAt && <span>Resolved <When at={alert.resolvedAt} /></span>}
         {alert.evidenceCount > 0 && <span>{alert.evidenceCount} evidence link{alert.evidenceCount === 1 ? "" : "s"}</span>}
       </p>
-      {alert.status === "ACKNOWLEDGED" && <p className="entry-meta">Acknowledged is not resolved.</p>}
     </div>)}
     {workItems.map((item) => <div className="entry" key={item.id}>
       <div className="entry-title"><Icon name="work" size={14} className={`tone-${item.tone}`} />{item.kindLabel} <Pill tone={item.tone}>{item.statusLabel}</Pill></div>
@@ -82,7 +81,7 @@ export function MarketPanel({ view }: { view: RecordView }) {
     <h3>Driver market <span className="count">{offers.length || ""}</span></h3>
     {offers.length === 0 && <p className="entry-text">No offer has been published for this order.</p>}
     {offers.map((offer) => <div className="entry" key={offer.id}>
-      <div className="entry-title"><Icon name="offer" size={14} />{offer.type === "BUNDLE" ? `Bundle offer (${offer.memberOrders.join(" and ")})` : offer.visibility === "DIRECTED" ? "Directed offer" : "Open offer"} <Pill tone={offer.tone}>{offer.statusLabel}</Pill></div>
+      <div className="entry-title"><Icon name="offer" size={14} />{offer.type === "BUNDLE" ? `Bundle offer (${offer.memberOrders.map((order) => order.reference).join(" and ")})` : offer.visibility === "DIRECTED" ? "Directed offer" : "Public offer"} <Pill tone={offer.tone}>{offer.statusLabel}</Pill></div>
       <p className="entry-meta">
         {offer.fee && <span>{offer.fee}</span>}
         {offer.publishedAt && <span>Published <When at={offer.publishedAt} /></span>}
@@ -93,10 +92,10 @@ export function MarketPanel({ view }: { view: RecordView }) {
       {offer.pricingNote && <p className="entry-text">{offer.pricingNote}</p>}
       {offer.assumptions.length > 0 && <p className="entry-text">{offer.assumptions.join(" · ")}</p>}
       {offer.exposures.map((exposure) => <p className="entry-text" key={exposure.id}>
-        Shown to <b>{exposure.driver.name}</b>{exposure.reason ? ` (${exposure.reason})` : ""} {fmtDateTime(exposure.shownAt)} · {exposure.statusLabel.toLowerCase()}{exposure.notifiedAt ? `, notified ${fmtDateTime(exposure.notifiedAt, null, false)}` : ", notification not recorded"}{exposure.viewedAt ? `, viewed ${fmtDateTime(exposure.viewedAt, null, false)}` : ", view not recorded"}{exposure.decidedAt ? `, decided ${fmtDateTime(exposure.decidedAt, null, false)}` : exposure.expiresAt ? `, deadline ${fmtDateTime(exposure.expiresAt, null, false)}` : ""}.
+        Shown to <b>{exposure.driver.name}</b>{exposure.reason ? ` (${exposure.reason})` : ""} {fmtDateTime(exposure.shownAt)} · {exposure.statusLabel.toLowerCase()}{exposure.notifiedAt ? `, notified ${fmtDateTime(exposure.notifiedAt)}` : ", notification not recorded"}{exposure.viewedAt ? `, viewed ${fmtDateTime(exposure.viewedAt)}` : ", view not recorded"}{exposure.decidedAt ? `, decided ${fmtDateTime(exposure.decidedAt)}` : exposure.expiresAt ? `, deadline ${fmtDateTime(exposure.expiresAt)}` : ""}.
       </p>)}
       {offer.reach && <p className="entry-text">Dispatch screening {fmtDateTime(offer.reach.checkedAt)}: {offer.reach.screened} screened, {offer.reach.suitable} provisionally suitable, {offer.reach.matched} audience matched, {offer.reach.accessible} feed accessible. A planning estimate, not proof of willingness.{offer.reach.note ? ` ${offer.reach.note}` : ""}</p>}
-      {offer.demand && <p className="entry-text">{offer.demand.views} detail view{offer.demand.views === 1 ? "" : "s"}, {offer.demand.passes} explicit pass{offer.demand.passes === 1 ? "" : "es"}{offer.demand.windowStart ? ` between ${fmtDateTime(offer.demand.windowStart, null, false)} and ${fmtDateTime(offer.demand.windowEnd)}` : ""}. Zero views does not mean nobody saw the listing.</p>}
+      {offer.demand && <p className="entry-text">{offer.demand.views} detail view{offer.demand.views === 1 ? "" : "s"}, {offer.demand.passes} explicit pass{offer.demand.passes === 1 ? "" : "es"}{offer.demand.windowStart ? ` between ${fmtDateTime(offer.demand.windowStart)} and ${fmtDateTime(offer.demand.windowEnd)}` : ""}. Zero views does not mean nobody saw the listing.</p>}
       {offer.assessment && <p className="entry-text">Operator review: {offer.assessment}.</p>}
     </div>)}
   </section>
@@ -159,8 +158,14 @@ export function CostsPanel({ view }: { view: RecordView }) {
     {expenses.length > shown.length && <More label={`${expenses.length - shown.length} earlier cost records`}>
       <div>{expenses.slice(shown.length).map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}</div>
     </More>}
-    {expenses.length > 0 && <p className="entry-meta">Review status is separate from payment. Amounts are in the claim's own currency.</p>}
   </section>
+}
+
+/** "Receipt attached" or "No receipt": whether a sample is in the packet is not the operator's question. */
+function receiptText(receipt: string): string {
+  if (receipt.startsWith("receipt attached")) return "Receipt attached"
+  if (receipt === "no receipt" || receipt.toLowerCase() === "missing") return "No receipt"
+  return receipt.charAt(0).toUpperCase() + receipt.slice(1)
 }
 
 function ExpenseRow({ expense }: { expense: RecordView["expenses"][number] }) {
@@ -169,7 +174,7 @@ function ExpenseRow({ expense }: { expense: RecordView["expenses"][number] }) {
     <p className="entry-meta">
       {expense.claimant && <span>{expense.claimant.name}</span>}
       {expense.payer && !expense.claimant && <span>Paid by {expense.payer}</span>}
-      <span>Receipt {expense.receipt}</span>
+      <span>{receiptText(expense.receipt)}</span>
       {expense.submittedAt && <span>Submitted <When at={expense.submittedAt} /></span>}
     </p>
     {expense.note && <p className="entry-text">{expense.note}</p>}

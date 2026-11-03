@@ -250,6 +250,12 @@ function waitingOn(kind: ProposalKind, status: ProposalStatus): Proposal["waitin
   return "operator"
 }
 
+/** A policy row in a few plain words, for the history line its approval writes. */
+const RULE_WORDS: Partial<Record<string, string>> = {
+  "site-routine": "routine site call", "driver-routine": "routine driver call", "operator-question": "question to the operator",
+  "pickup-readiness": "pickup-readiness call",
+}
+
 /** Folds a draft and its stored events into the proposal as it stands. */
 export function foldProposal(draft: ProposalDraft, events: StoredProposalEvent[], withdrawnAt: string | null = null): Proposal {
   const row = policyRow(draft.policyRow)
@@ -257,7 +263,7 @@ export function foldProposal(draft: ProposalDraft, events: StoredProposalEvent[]
   let status: ProposalStatus = "proposed"
   if (row.decision === "acts alone") {
     status = "approved"
-    history.push({ at: draft.proposedAt, by: "policy", kind: "approved", text: `Acts alone under ${row.id}: ${row.agentDoes}` })
+    history.push({ at: draft.proposedAt, by: "policy", kind: "approved", text: `Allowed by rule: ${RULE_WORDS[row.id] ?? row.action.toLowerCase()}` })
   }
   let script = draft.script
   const instructions: Proposal["instructions"] = []
