@@ -2,7 +2,8 @@
 // digest facts. The model (low effort, no tools, facts only) writes it with
 // placeholders, and the server fills in every number and order reference:
 //
-//   {{count.<key>}}   a count from the facts (needs_action, in_progress, normal, done, total, urgent, couldnt_check)
+//   {{count.<key>}}   a count from the facts (needs_action, in_progress, normal, done, total, urgent, couldnt_check);
+//                     "urgent" here is the urgent Blocked orders, as the Urgent tile counts them
 //   {{order:CD-…}}    a link to an order named in the facts
 //   {{due:CD-…}}      that urgent order's earliest deadline, as "10:00" (or "22 Oct 09:00")
 //
@@ -14,6 +15,7 @@ import { createHash } from "node:crypto"
 import type { Effort, ModelGateway } from "@/lib/reviewer/gateway"
 import { DEFAULT_REVIEWER_MODEL } from "@/lib/reviewer/reviewer"
 import { COUNT_KEYS, type CountKey, type DigestFacts, type DigestOrder } from "./briefing"
+import { dayKey, fmtClock, fmtDateTime } from "@/lib/present/time"
 
 /** A run of text or a link to an order. */
 export type ProseSegment = { text: string } | { order: DigestOrder }
@@ -55,17 +57,15 @@ export type ProseOptions = {
   timeoutMs?: number
 }
 
-export const PROSE_VERSION = "digest-prose-v1"
+export const PROSE_VERSION = "digest-prose-v2"
 export const DIGEST_TIMEOUT_MS = 5_000
 
 // ── Formatting ────────────────────────────────────────────────────────────
 
-/** "10:00" on the digest's day, "22 Oct 09:00" on another (UTC, like the demo clock). */
+/** "10:00" on the digest's day, "22 Oct 09:00" on another, in the control room's zone like the demo clock. */
 export function fmtDue(at: string, digestAt: string): string {
-  const date = new Date(at)
-  const time = date.toISOString().slice(11, 16)
-  if (date.toISOString().slice(0, 10) === new Date(digestAt).toISOString().slice(0, 10)) return time
-  return `${new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }).format(date)} ${time}`
+  if (dayKey(at) === dayKey(digestAt)) return fmtClock(at)
+  return fmtDateTime(at, null, false)
 }
 
 /** "A", "A and B", "A, B and C" as segments. */
@@ -108,21 +108,21 @@ export function moveText(text: string): string {
  */
 export function templateProse(facts: DigestFacts, note: string): DigestProse {
   const blocked = facts.counts.needs_action
-  const urgentBlocked = facts.urgent.filter((row) => row.group === "needs_action")
-  const urgent = urgentBlocked.length
+  const blockedUrgent = urgentBlocked(facts)
+  const urgent = blockedUrgent.length
   const opener: ProseSegment[] = [{ text: `${GREETING[facts.slot]} ` }]
   if (!blocked) {
     opener.push({ text: "Nothing is blocked." })
   } else if (!urgent) {
     opener.push({ text: blocked === 1 ? "The blocked order is not urgent." : `None of the ${blocked} blocked orders is urgent.` })
   } else {
-    const top = urgentBlocked.slice(0, 3)
+    const top = blockedUrgent.slice(0, 3)
     const head = urgent === blocked
       ? blocked === 1 ? "The blocked order is urgent" : `All ${blocked} blocked orders are urgent`
       : `${urgent} of the ${blocked} blocked orders ${urgent === 1 ? "is" : "are"} urgent`
     opener.push({ text: `${head}${urgent > top.length ? "; the most pressing are " : ": "}` }, ...listOf(top), { text: "." })
   }
-  const first = urgentBlocked[0]
+  const first = blockedUrgent[0]
   const firstNeed = facts.needsAction[0]
   const firstMove: ProseSegment[] = first
     ? [{ text: "Start with " }, { order: first }, { text: `: ${first.reasons[0] ? moveText(first.reasons[0].text) : "it is urgent"}.` }]
@@ -164,7 +164,7 @@ export function fillProse(text: string, facts: DigestFacts): ProseSegment[] {
     const count = /^count\.(\w+)$/.exec(token)
     const order = /^order:\s*(\S+)$/.exec(token)
     const due = /^due:\s*(\S+)$/.exec(token)
-    if (count && (COUNT_KEYS as string[]).includes(count[1])) segments.push({ text: String(facts.counts[count[1] as CountKey]) })
+    if (count && (COUNT_KEYS as string[]).includes(count[1])) segments.push({ text: String(proseCounts(facts)[count[1] as CountKey]) })
     else if (order && orders.has(order[1])) segments.push({ order: orders.get(order[1])! })
     else if (due && urgentDue.get(due[1])) segments.push({ text: fmtDue(urgentDue.get(due[1])!, facts.at) })
     else throw new ProseRejected(`an unknown placeholder {{${token}}}`)
@@ -173,12 +173,23 @@ export function fillProse(text: string, facts: DigestFacts): ProseSegment[] {
   return tidy(segments)
 }
 
+/**
+ * The counts the prose may use. Urgency ranks Blocked orders, and the Urgent tile counts
+ * urgent Blocked orders only, so "urgent" in the prose means the same: an urgent order the
+ * agent is already working on is not the operator's to start with.
+ */
+function proseCounts(facts: DigestFacts): DigestFacts["counts"] {
+  return { ...facts.counts, urgent: urgentBlocked(facts).length }
+}
+
+const urgentBlocked = (facts: DigestFacts) => facts.urgent.filter((row) => row.group === "needs_action")
+
 // ── The model pass ────────────────────────────────────────────────────────
 
-const SYSTEM = `You write the short prose of an operations digest for a car-delivery control room. You receive digest facts as JSON: counts per group, urgent orders with their reasons, the orders with a problem, and what changed since the last digest.
+const SYSTEM = `You write the short prose of an operations digest for a car-delivery control room. You receive digest facts as JSON: counts per group, the urgent Blocked orders with their reasons, the orders with a problem, and what changed since the last digest. "Urgent" always means urgent and Blocked (needs_action): count.urgent counts exactly the orders in "urgent", and orders the agent is already handling are not in it.
 
 Write two things:
-- "opener": two or three sentences. Order the urgent items by what to do first and group similar cases (for example several pickups missing a release).
+- "opener": two or three sentences. Do not restate the group counts (the digest shows them as tiles); say how many Blocked orders are urgent ({{count.urgent}} of {{count.needs_action}}) and which come first. Order the urgent items by what to do first and group similar cases (for example several pickups missing a release).
 - "firstMove": one sentence suggesting the operator's first move.
 
 Rules:
@@ -196,9 +207,9 @@ Reply with only a JSON object: {"opener": "...", "firstMove": "..."}`
 function factsForModel(facts: DigestFacts) {
   return {
     digest: facts.slot,
-    counts: facts.counts,
+    counts: proseCounts(facts),
     needsActionByCause: facts.needsActionBy,
-    urgent: facts.urgent.slice(0, 12).map((row) => ({ reference: row.reference, group: row.group, reasons: row.reasons.map((reason) => reason.text.slice(0, 160)) })),
+    urgent: urgentBlocked(facts).slice(0, 12).map((row) => ({ reference: row.reference, group: row.group, reasons: row.reasons.map((reason) => reason.text.slice(0, 160)) })),
     needsAction: facts.needsAction.slice(0, 12).map((row) => ({ reference: row.reference, urgent: row.urgent, reason: row.reason.slice(0, 200) })),
     changes: facts.changes && {
       joinedNeedsAction: facts.changes.newNeedsAction.map((row) => row.reference),

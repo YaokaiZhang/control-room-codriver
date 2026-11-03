@@ -30,7 +30,7 @@ import { createCallRunner, type CallOptions } from "./call-runner"
 import type { PhonePersona, PhoneView } from "./phone"
 import type { AudioClip } from "./voice-agent"
 import { latestEta } from "./eta"
-import { answeredRecords, callbackItems, orderCalls, reportedEta, statedByCallee, utcTime, type BlockedCall, type Call, type CalleeInput, type CallLine, type CallLineView, type Handover, type OrderCalls } from "./calls"
+import { answeredRecords, callbackItems, orderCalls, reportedEta, statedByCallee, deskTime, type BlockedCall, type Call, type CalleeInput, type CallLine, type CallLineView, type Handover, type OrderCalls } from "./calls"
 import { demandCheck, pendingChanges, publicationOf, solvedText, type Publication, type StoredPublicationEvent } from "./publishing"
 import { planInput, planTrip, type TravelOptions } from "./travel-planner"
 import { MAX_REPLY, operatorLinks, type InboxEvent } from "./inbox"
@@ -544,7 +544,7 @@ export function createEngine({ snapshot, store, reviews: reviewOptions, briefing
     for (const change of call.changes) {
       await proposeChange({
         orderId: call.orderId, title: change.title, change: change.change, source: call.id,
-        why: `${call.callee.name ?? call.callee.handle} said on the ${call.line} call at ${utcTime(call.endedAt ?? call.startedAt)}: ${change.claim}.`,
+        why: `${call.callee.name ?? call.callee.handle} said on the ${call.line} call at ${deskTime(call.endedAt ?? call.startedAt)}: ${change.claim}.`,
         contact: { name: call.callee.name ?? call.callee.handle, type: call.callee.contactType, role: call.line === "driver" ? "driver" : "site", recordId: call.callee.recordId },
       })
     }

@@ -98,8 +98,13 @@ test("the model's prose is filled in: counts from the facts, order references as
   assert.equal(gateway.calls.length, 1)
   assert.equal(gateway.calls[0].effort, "low")
   assert.equal(gateway.calls[0].job, "digest")
-  const urgent = state.orders.filter((row) => row.urgency.urgent).length
-  assert.match(plain(prose.opener), new RegExp(`^${state.groupCounts.needs_action} orders need you, ${urgent} of them urgent; \\[CD-420437\\] is due 08:58\\.$`))
+  // "Urgent" in the prose is urgent and Blocked, like the Urgent tile; the time is in the control room's zone.
+  const urgent = state.orders.filter((row) => row.urgency.urgent && row.group === "needs_action").length
+  assert.ok(urgent < state.orders.filter((row) => row.urgency.urgent).length, "some urgent orders are not Blocked, so the count is a real check")
+  assert.match(plain(prose.opener), new RegExp(`^${state.groupCounts.needs_action} orders need you, ${urgent} of them urgent; \\[CD-420437\\] is due 11:58\\.$`))
+  const sent = JSON.parse(String(gateway.calls[0].messages[1].content)) as { counts: { urgent: number }; urgent: unknown[] }
+  assert.equal(sent.counts.urgent, urgent, "the model reads the urgent Blocked count")
+  assert.equal(sent.urgent.length, Math.min(urgent, 12), "the model's urgent list holds Blocked orders only")
   assert.equal(plain(prose.firstMove), "Start with [CD-420437].")
 })
 

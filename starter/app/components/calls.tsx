@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import type { BlockedCall, Call, CallLineView, CallState } from "@/lib/engine/calls"
 import type { TurnCheck, TurnPath } from "@/lib/engine/voice-agent"
+import { fmtDeskClock } from "@/lib/present/time"
 import type { Tone } from "@/lib/present/types"
 import { CLOCK_EVENT } from "./demo-clock"
 import { Icon } from "./icons"
@@ -36,9 +37,7 @@ function clock(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }
 
-function demoTime(iso: string): string {
-  return `${new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(iso))} UTC`
-}
+const demoTime = fmtDeskClock
 
 function PlayButton({ audioId }: { audioId: string }) {
   const [playing, setPlaying] = useState(false)
