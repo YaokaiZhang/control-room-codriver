@@ -11,6 +11,7 @@
 // Publication events are their own append-only table, not effect events: publishing
 // changes no record of the order, only its stage, so it must not re-review the order.
 
+import { fmtDateTime } from "@/lib/present/time"
 import { finalDeliveryPoint, journeyPlan, num, originPickupPoint, rows, str, type Bundle } from "@/lib/present/bundle"
 import type { Call, TranscriptLine } from "./calls"
 import type { EffectEvent } from "./effects"
@@ -180,7 +181,7 @@ export function recordLine(bundle: Bundle, effects: EffectEvent[], recordId: str
   const effect = effects.find((event) => event.id === recordId)
   if (effect) return effect.text
   const message = bundle.messages.find((row) => row.id === recordId)
-  if (message) return `${message.authorType.toLowerCase()} message, ${message.authoredAt.slice(0, 16).replace("T", " ")} UTC: "${message.body}"`
+  if (message) return `${message.authorType.toLowerCase()} message, ${fmtDateTime(message.authoredAt)}: "${message.body}"`
   const alert = bundle.alerts.find((row) => row.id === recordId)
   if (alert) return `Alert (${alert.signal.toLowerCase().replace(/_/g, " ")}): ${alert.summary}`
   const thread = bundle.conversations.find((row) => row.id === recordId)
@@ -192,7 +193,7 @@ export function recordLine(bundle: Bundle, effects: EffectEvent[], recordId: str
     const field = FIELDS.find((key) => str(row.details[key]))
     if (collection === "tracking_observations") {
       const eta = str(row.details.estimated_delivery_at)
-      return `Tracking ${str(row.details.observed_at)?.slice(0, 16).replace("T", " ") ?? ""} UTC${eta ? `: ETA ${eta.slice(0, 16).replace("T", " ")} UTC` : ""}`
+      return `Tracking ${fmtDateTime(str(row.details.observed_at))}${eta ? `: ETA ${fmtDateTime(eta)}` : ""}`
     }
     return field ? `${name[0].toUpperCase()}${name.slice(1)}: ${String(row.details[field]).replace(/_/g, " ")}` : `${name[0].toUpperCase()}${name.slice(1)} ${recordId}`
   }

@@ -8,7 +8,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { DueItem } from "@/lib/engine/due"
 import type { ClockAction, ClockView } from "@/lib/present/types"
-import { fmtDateTime } from "@/lib/present/time"
+import { fmtClock, fmtDateTime, fmtDeskClock } from "@/lib/present/time"
 import { Icon } from "./icons"
 
 export const CLOCK_EVENT = "control-room:clock"
@@ -24,8 +24,8 @@ export function useClockVersion(): number {
   return version
 }
 
-const time = (iso: string) => new Date(iso).toISOString().slice(11, 16)
-const stamp = (iso: string) => `${fmtDateTime(iso, null, false)} UTC`
+const time = (iso: string) => fmtClock(iso)
+const stamp = (iso: string) => fmtDateTime(iso)
 
 function DueList({ items }: { items: DueItem[] }) {
   return <ul className="demo-due">
@@ -82,8 +82,8 @@ export function DemoClock({ operator, snapshotAt }: { operator: boolean; snapsho
       setClock(data)
       const became = data.became ?? []
       setResult(action === "reset"
-        ? { text: `Reset to ${time(data.now)} UTC. Our state is cleared; the snapshot is unchanged.`, items: [] }
-        : { text: `Moved to ${time(data.now)} UTC. ${became.length ? `${became.length === 1 ? "One item" : `${became.length} items`} came due:` : "Nothing came due."}`, items: became })
+        ? { text: `Reset to ${fmtDeskClock(data.now)}. Our state is cleared; the snapshot is unchanged.`, items: [] }
+        : { text: `Moved to ${fmtDeskClock(data.now)}. ${became.length ? `${became.length === 1 ? "One item" : `${became.length} items`} came due:` : "Nothing came due."}`, items: became })
       window.dispatchEvent(new Event(CLOCK_EVENT))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The clock did not move")
@@ -126,7 +126,7 @@ export function DemoClock({ operator, snapshotAt }: { operator: boolean; snapsho
       </div>
       <div className="demo-next">
         {clock?.nextDueAt
-          ? <><p>Up next at {time(clock.nextDueAt)} UTC</p><DueList items={clock.upcoming} /></>
+          ? <><p>Up next at {fmtDeskClock(clock.nextDueAt)}</p><DueList items={clock.upcoming} /></>
           : <p>Nothing else is due on the demo clock.</p>}
       </div>
       <div className="demo-reset">

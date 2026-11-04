@@ -3,6 +3,9 @@
 
 const LOCALE = "en-GB"
 
+/** The control room's zone. A time not tied to a site (the demo clock, calls, the record's activity) reads in it, so a page never mixes UTC with local times. */
+export const DESK_ZONE = "Europe/Helsinki"
+
 export function zoneCity(zone: string | null | undefined): string | null {
   if (!zone || zone === "UTC") return null
   const city = zone.split("/").pop()
@@ -30,12 +33,12 @@ function formatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
 }
 
 function safeZone(zone: string | null | undefined): string {
-  if (!zone) return "UTC"
+  if (!zone) return DESK_ZONE
   try {
     formatter({ timeZone: zone })
     return zone
   } catch {
-    return "UTC"
+    return DESK_ZONE
   }
 }
 
@@ -64,7 +67,7 @@ export function fmtClock(value: string | null | undefined, zone?: string | null)
   return parts(date, safeZone(zone), { hour: "2-digit", minute: "2-digit" })
 }
 
-/** "21 Oct 08:14" in the given zone, with the zone's short name when it is not UTC: "23 Oct 09:00 EEST". */
+/** "21 Oct 08:14" in the given zone (the control room's when none), with the zone's short name: "23 Oct 09:00 EEST". */
 export function fmtDateTime(value: string | null | undefined, zone?: string | null, withZone = true): string {
   const date = parse(value)
   if (!date) return ""
@@ -75,11 +78,23 @@ export function fmtDateTime(value: string | null | undefined, zone?: string | nu
   return `${text} ${name}`
 }
 
-/** "21 October 2026, 08:14 UTC" for tooltips. */
+/** "21 October 2026, 11:14 EEST" for tooltips, in the control room's zone. */
 export function fmtLong(value: string | null | undefined): string {
   const date = parse(value)
   if (!date) return ""
-  return `${parts(date, "UTC", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })} UTC`
+  return `${parts(date, DESK_ZONE, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })} ${zoneName(date, DESK_ZONE)}`
+}
+
+/** "11:14 EEST": a clock time in the control room's zone, with the zone's short name. */
+export function fmtDeskClock(value: string | null | undefined): string {
+  const date = parse(value)
+  if (!date) return ""
+  return `${parts(date, DESK_ZONE, { hour: "2-digit", minute: "2-digit" })} ${zoneName(date, DESK_ZONE)}`
+}
+
+/** "EEST": the control room zone's short name at that moment. */
+export function deskZoneName(value?: string | null): string {
+  return zoneName(parse(value) ?? new Date(), DESK_ZONE)
 }
 
 export function zoneName(date: Date, zone: string): string {

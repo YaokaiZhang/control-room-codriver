@@ -43,6 +43,7 @@ import { isFinished, movingAssignments, selectedPromise } from "./order-facts"
 import type { Proposal } from "./proposals"
 import type { TurnCheck, TurnPath } from "./voice-agent"
 import { capital, plainName } from "@/lib/present/names"
+import { DESK_ZONE, fmtDeskClock } from "@/lib/present/time"
 
 export type CallLine = "site" | "driver"
 export type CallState =
@@ -357,9 +358,9 @@ export function localTime(iso: string, zone: string): string {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: zone }).format(new Date(iso))
 }
 
-/** "11:15 UTC": operator-facing times, like the demo clock in the bar. */
-export function utcTime(iso: string): string {
-  return `${localTime(iso, "UTC")} UTC`
+/** "11:15 EEST": operator-facing times, in the control room's zone like the demo clock in the bar. */
+export function deskTime(iso: string): string {
+  return fmtDeskClock(iso)
 }
 
 /** The callee's time zone: the pickup slot's for a site, the delivery promise's for a driver. */
@@ -367,7 +368,7 @@ function zoneOf(bundle: Bundle, line: CallLine): string {
   const purpose = line === "site" ? "SELECTED_PICKUP_SLOT" : "CUSTOMER_DELIVERY_PROMISE"
   const window = rows(bundle, "time_windows").find((row) => row.details.purpose === purpose && row.details.is_selected === true)
     ?? rows(bundle, "time_windows").find((row) => row.details.purpose === purpose)
-  return str(window?.details.timezone) ?? "Europe/Helsinki"
+  return str(window?.details.timezone) ?? DESK_ZONE
 }
 
 function who(callee: CallCallee): string {
@@ -482,8 +483,8 @@ export function agentTurn(call: Call, now: string, tier2: boolean, lastEvent: St
     if (call.attempt >= MAX_ATTEMPTS) return [ending(call, "unreachable", "")]
     const callbackAt = addMinutes(now, minutes)
     return [
-      ...(line ? [{ kind: "said" as const, text: callbackLine(localTime(callbackAt, call.zone ?? "Europe/Helsinki")) }] : []),
-      { kind: "callback", callbackAt, text: `Callback scheduled for ${utcTime(callbackAt)}.` },
+      ...(line ? [{ kind: "said" as const, text: callbackLine(localTime(callbackAt, call.zone ?? DESK_ZONE)) }] : []),
+      { kind: "callback", callbackAt, text: `Callback scheduled for ${deskTime(callbackAt)}.` },
       ending(call, "callback", ""),
     ]
   }
@@ -667,7 +668,7 @@ export function tightEta(bundle: Bundle): { text: string; recordId: string } | n
   if (!latest || latest.superseded || !end) return null
   const margin = (new Date(end).getTime() - new Date(latest.at).getTime()) / MINUTE
   if (margin < 0 || margin > TIGHT_ETA_MINUTES) return null
-  return { text: `Latest ETA ${utcTime(latest.at)} is ${Math.round(margin)} min before the promise ends at ${utcTime(end)}`, recordId: latest.recordId }
+  return { text: `Latest ETA ${deskTime(latest.at)} is ${Math.round(margin)} min before the promise ends at ${deskTime(end)}`, recordId: latest.recordId }
 }
 
 /**
@@ -793,7 +794,7 @@ export function orderCalls(bundle: Bundle, planned: PlannedAction[], proposals: 
       text = `Handover from the call with ${name}: ${latest.handover.question}`
     } else if (latest?.outcome === "callback" && latest.callbackAt && (open.length || latest.topics.length)) {
       status = latest.callbackAt > now ? "callback" : "callback_due"
-      text = status === "callback" ? `Callback to ${name} at ${utcTime(latest.callbackAt)}.` : `Callback to ${name} is due; the agent calls now.`
+      text = status === "callback" ? `Callback to ${name} at ${deskTime(latest.callbackAt)}.` : `Callback to ${name} is due; the agent calls now.`
     } else if (open.length && open.every((topic) => topic.kind === "check")) {
       status = "on_request"
       text = `Ask ${name} if they can still deliver on time: ${open.map((topic) => topic.title).join("; ")}.`

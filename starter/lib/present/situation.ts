@@ -11,6 +11,7 @@ import type { Call, CallLineView } from "@/lib/engine/calls"
 import type { Proposal } from "@/lib/engine/proposals"
 import type { Publication } from "@/lib/engine/publishing"
 import { capital, plainName } from "./names"
+import { fmtDeskClock } from "./time"
 
 export type SituationInput = {
   group: Group
@@ -164,7 +165,7 @@ export function whoSaid(name: string, claim: string): string {
 
 /** What the proposal is about, as what is wrong. A call result reads as who said what. */
 function proposalHeadline(proposal: Proposal): string {
-  const said = /^(.+?) said on the \w+ call(?: at [\d:]+ UTC)?: (.+)$/.exec(proposal.why)
+  const said = /^(.+?) said on the \w+ call(?: at [\d:]+ [A-Z][A-Z+\d]*)?: (.+)$/.exec(proposal.why)
   if (said) return whoSaid(shortName(said[1]), said[2])
   return stop(proposal.title)
 }
@@ -322,10 +323,10 @@ function inProgress(input: SituationInput): Situation {
   const topics = (row: CallLineView) => row.open.map((topic) => topic.title).join("; ") || row.latest?.reason || null
   if (line) {
     const name = lineName(line)
-    const at = line.latest?.callbackAt ? new Date(line.latest.callbackAt).toISOString().slice(11, 16) : null
+    const at = line.latest?.callbackAt ? fmtDeskClock(line.latest.callbackAt) : null
     const headline = line.status === "calling" ? `Calling ${name}`
       : line.status === "callback_due" ? `Calling ${name} back now`
-      : line.status === "callback" ? `Callback to ${name}${at ? ` at ${at} UTC` : ""}`
+      : line.status === "callback" ? `Callback to ${name}${at ? ` at ${at}` : ""}`
       : `Will call ${name}`
     return { headline, body: topics(line) ? sentence(topics(line)!) : null, step: null, others: [] }
   }

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { DigestItem, LessonItem, PushItem } from "@/lib/engine/engine"
 import type { Group } from "@/lib/engine/checks"
 import type { BoardCard, BriefingView } from "@/lib/present/types"
-import { fmtDateTime } from "@/lib/present/time"
+import { fmtDateTime, fmtClock } from "@/lib/present/time"
 import { BRIEFING_EVENT, itemSummary, Prose, urgentBlocked } from "../components/briefing"
 import { GROUP_LABEL } from "../components/checks"
 import { useClockVersion } from "../components/demo-clock"
@@ -21,8 +21,8 @@ import { dueText, SituationCard } from "../components/situation"
 import { More } from "../components/ui"
 import { useOverview } from "../components/use-overview"
 
-const time = (iso: string) => new Date(iso).toISOString().slice(11, 16)
-const stamp = (iso: string) => `${fmtDateTime(iso, null, false)} UTC`
+const time = (iso: string) => fmtClock(iso)
+const stamp = (iso: string) => fmtDateTime(iso)
 
 const PUSH_LABEL: Record<PushItem["reason"], string> = {
   action_due: "action due within 2 h", promise_at_risk: "promise at risk today", pickup_unready: "pickup not ready", handover: "handover",

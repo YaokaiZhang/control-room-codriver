@@ -54,7 +54,7 @@ eachStore("a decline schedules a callback that fires when the demo clock reaches
   assert.equal(first.outcome, "callback")
   assert.equal(first.callbackAt, "2026-10-21T10:00:00.000Z", "a declined call is retried an hour later")
   assert.equal(order806.group, "in_progress", "a scheduled callback keeps the order In progress")
-  assert.match(order806.reason, /Callback to .* at 10:00 UTC/, "operator-facing times are UTC, like the demo clock")
+  assert.match(order806.reason, /Callback to .* at 13:00 EEST/, "operator-facing times are in the control room zone, like the demo clock")
   const state = await engine.state()
   assert.ok(state.dueItems.some((item) => item.id === `callback:${first.id}` && item.kind === "callback" && !item.due))
 
