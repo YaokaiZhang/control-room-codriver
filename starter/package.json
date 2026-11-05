@@ -18,7 +18,8 @@
     "review:snapshot": "tsx scripts/review-snapshot.ts",
     "review:sweep": "NODE_USE_ENV_PROXY=1 tsx scripts/review-sweep.ts",
     "lessons": "NODE_USE_ENV_PROXY=1 tsx scripts/lessons.ts",
-    "lessons:judge-eval": "NODE_USE_ENV_PROXY=1 tsx scripts/judge-eval.ts"
+    "lessons:judge-eval": "NODE_USE_ENV_PROXY=1 tsx scripts/judge-eval.ts",
+    "demo:lesson": "NODE_USE_ENV_PROXY=1 tsx scripts/demo-lesson.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
