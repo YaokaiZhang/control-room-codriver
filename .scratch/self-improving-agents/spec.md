@@ -47,7 +47,7 @@ A feedback loop. Nothing changes model weights; the agents learn through approve
    Every run's trace (scores, each verdict and its reason, cost) is stored with the
    distil run, for engineers; none of it reaches the operator.
 5. **Operator approves.** A Briefing item ("A new lesson needs your yes") links to a
-   Lessons section on the Rules page: the lesson, the explanation, each source mistake
+   Lessons page (/lessons; it replaced the Rules page, whose fixed rules are no longer listed): the lesson, the explanation, each source mistake
    with the operator's original note and order link. No eval scores or verdicts: the
    gate decided those. Approve, reject, retire; each an event with time and actor.
 6. **Inject what applies.** Approved lessons are tagged (e.g. failing rule ids for the

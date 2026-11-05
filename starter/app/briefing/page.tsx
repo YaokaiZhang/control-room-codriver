@@ -4,7 +4,7 @@
 // 12:00 and 16:00 on the demo clock and urgent pushes, newest first. Every count
 // comes from the rule checks; the model only writes the opener and first move.
 // Each order a digest or push names shows as the board's situation card, as it stands now.
-// A new lesson links to the Lessons section of the Rules page, where the operator decides.
+// A new lesson links to the Lessons page, where the operator decides.
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -185,6 +185,6 @@ function Lesson({ item }: { item: LessonItem }) {
       <p className="mail-meta">{stamp(item.at)} · {AGENT_LABEL[item.agent] ?? item.agent}</p>
     </header>
     <blockquote className="lesson-text">{item.text}</blockquote>
-    <p className="digest-move"><Icon name="arrow" size={15} /><Link className="ref-link" href={item.href}>Read it and decide on the Rules page</Link></p>
+    <p className="digest-move"><Icon name="arrow" size={15} /><Link className="ref-link" href={item.href}>Read it and decide on the Lessons page</Link></p>
   </>
 }

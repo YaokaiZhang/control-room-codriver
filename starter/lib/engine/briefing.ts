@@ -10,7 +10,7 @@
 //   Ticket 14 sends handover pushes through the same `push` (reason "handover").
 //
 // - A lesson candidate (lib/engine/lessons.ts) brings "A new lesson needs your yes",
-//   linking to its place in the Lessons section of the Rules page, once per lesson.
+//   linking to its place on the Lessons page, once per lesson.
 //
 // Delivery is stored (cr_briefing_items) and at-most-once by item id, so a reset
 // clears the inbox and the next delivery brings the 09:00 digest back.
@@ -97,7 +97,7 @@ export type LessonItem = ItemBase & {
   agent: string
   /** The lesson itself, one or two sentences. */
   text: string
-  /** Where the operator decides: the lesson on the Rules page. */
+  /** Where the operator decides: the lesson on the Lessons page. */
   href: string
 }
 
@@ -112,7 +112,7 @@ export function lessonItemId(lessonId: string): string {
 export function lessonItem(lesson: { id: string; agent: string; text: string }, at: string, deliveredAt: string): LessonItem {
   return {
     id: lessonItemId(lesson.id), kind: "lesson", at, read: false, deliveredAt, title: LESSON_ITEM_TITLE,
-    lessonId: lesson.id, agent: lesson.agent, text: lesson.text, href: `/rules#lesson-${lesson.id}`,
+    lessonId: lesson.id, agent: lesson.agent, text: lesson.text, href: `/lessons#lesson-${lesson.id}`,
   }
 }
 

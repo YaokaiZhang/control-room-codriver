@@ -179,13 +179,21 @@ export async function sourceMistakes(ids: string[], lookup?: (ids: string[]) => 
   return ids.map((id) => found.get(id) ?? { id, note: null, orderId: null, reference: null })
 }
 
-export type LessonView = Lesson & { sources: MistakeSource[] }
+/** A lesson as the Lessons page shows it: its source mistakes, and what it applies to in words. */
+export type LessonView = Lesson & { sources: MistakeSource[]; appliesToLabels: string[] }
+
+const CARD_KIND_LABEL: Record<string, string> = { decide: "Decide cards", review: "Review cards", agent: "Agent cards" }
+
+/** A tag in words: a reviewer tag is a rule check, a wording tag a card kind. */
+function tagLabel(agent: Lesson["agent"], tag: string): string {
+  return agent === "reviewer" ? RULE_CATALOGUE[tag as keyof typeof RULE_CATALOGUE]?.title ?? tag : CARD_KIND_LABEL[tag] ?? tag
+}
 
 /** GET /api/lessons and every action's answer. */
 export type LessonsView = { lessons: LessonView[]; max: number }
 
 export async function lessonsView(lessons: Lesson[], lookup?: (ids: string[]) => Promise<MistakeSource[]>): Promise<LessonsView> {
-  return { lessons: await Promise.all(lessons.map(async (lesson) => ({ ...lesson, sources: await sourceMistakes(lesson.sourceMistakeIds, lookup) }))), max: MAX_APPROVED_LESSONS }
+  return { lessons: await Promise.all(lessons.map(async (lesson) => ({ ...lesson, sources: await sourceMistakes(lesson.sourceMistakeIds, lookup), appliesToLabels: lesson.appliesTo.map((tag) => tagLabel(lesson.agent, tag)) }))), max: MAX_APPROVED_LESSONS }
 }
 
 /** A stored mistake as a lesson's source: what the operator (or the validator) said, and the order. */

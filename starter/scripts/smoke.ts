@@ -301,10 +301,9 @@ async function main(): Promise<void> {
   const leaking = approvals.waiting.filter((row) => row.kind !== "change" && customerSide.has(row.contact?.type ?? "")
     && (row.kind !== "customer_contact" || row.contact?.handle || row.policyRow !== "customer-side"))
   if (leaking.length) throw new Error(`Customer-side proposals the agent could act on: ${leaking.map((row) => row.reference).join(", ")}`)
-  const rulesPage = await appFetch(`${base}/rules`)
-  const rulesText = rulesPage.ok ? await rulesPage.text() : ""
-  if (!rulesText.includes("customer-side") || !rulesText.includes("pickup-readiness")) throw new Error(`Rules page did not render the policy (${rulesPage.status})`)
-  console.log(`Proposals: ${approvals.waiting.length} waiting for a yes, each with its policy row; the Rules page lists the policy.`)
+  const lessonsPage = await appFetch(`${base}/lessons`)
+  if (!lessonsPage.ok || !(await lessonsPage.text()).includes("Lessons")) throw new Error(`Lessons page did not render (${lessonsPage.status})`)
+  console.log(`Proposals: ${approvals.waiting.length} waiting for a yes, each with its policy row; the Lessons page renders.`)
   // Spec story 14: the starter's lane board stays on its own route, cards in lane order without the engine's verdict.
   const boardPage = await appFetch(`${base}/board`)
   if (!boardPage.ok) throw new Error(`The lane board did not render (${boardPage.status})`)

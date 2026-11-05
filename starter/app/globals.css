@@ -383,7 +383,7 @@ ul, ol { padding: 0; list-style: none; }
   .finding-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
-/* ── Proposals, batch approval, Rules page (ticket 07) ──────────────────── */
+/* ── Proposals, batch approval, Lessons page ─────────────────────────────── */
 .proposal { margin-top: 10px; padding: 16px 18px 14px; border-radius: var(--r-md); background: var(--birch); scroll-margin-top: calc(var(--bar-h) + 16px); }
 .proposal:target { box-shadow: inset 0 0 0 2px var(--ink); }
 .proposal-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; align-items: start; }
@@ -421,9 +421,6 @@ ul, ol { padding: 0; list-style: none; }
 .proposal-history li.is-effect .proposal-history-by { color: var(--green-ink); }
 .superseded-tag { padding: 1px 8px; border-radius: 999px; background: var(--sand-50); color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: line-through; text-decoration-color: var(--sand-200); }
 .superseded-tag:hover { color: var(--ink); }
-.policy-link { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--body); font-size: 14px; }
-.policy-link span:last-child { text-decoration: underline; text-decoration-color: var(--sand-200); text-underline-offset: 3px; }
-.policy-link:hover span:last-child { text-decoration-color: var(--ink); }
 .review-unreachable { margin-top: 8px; }
 
 .queue-batch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
@@ -444,32 +441,19 @@ ul, ol { padding: 0; list-style: none; }
 .batch-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px -28px 0; padding: 14px 28px 20px; background: var(--sand-50); box-shadow: 0 -10px 16px -12px rgba(18, 17, 14, 0.18); }
 .batch-actions .hint { font-size: 14px; color: var(--muted); }
 
-.rules-page h1 { font-size: 44px; }
-.rules-intro { margin-top: 12px; font-size: 17px; color: var(--body); max-width: 70ch; }
-.rules-section { margin-top: 48px; }
-.rules-section h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-.rules-section > p { margin-top: 6px; font-size: 15px; color: var(--muted); max-width: 72ch; }
-.rules-list { list-style: none; display: grid; gap: 8px; margin: 16px 0 0; padding: 0; }
-.rule-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 20px; padding: 16px 20px; border-radius: 18px; background: var(--sand-50); scroll-margin-top: calc(var(--bar-h) + 16px); }
-.rule-row:target { background: var(--sand-100); box-shadow: inset 0 0 0 2px var(--ink); }
-.rule-row dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-.rule-row-2 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.4fr); }
-.rule-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 20px; margin-top: 18px; padding: 0 20px; font-size: 13px; font-weight: 600; color: var(--muted); }
-.rule-cols.rule-row-2 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 2.4fr); }
-.rule-cols + .rules-list { margin-top: 6px; }
-.rules-sub { margin-top: 28px; font-size: 15px; font-weight: 600; color: var(--body); }
-.rule-row dd { margin: 0; font-size: 15px; color: var(--body); }
-.rule-row dd + dd { margin-top: 6px; }
-.rule-row .rule-name { font-size: 16px; font-weight: 700; color: var(--ink); }
-.rule-id { display: inline-block; margin-right: 8px; }
-.rule-types { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lessons-page h1 { font-size: 44px; }
+.lessons-intro { margin-top: 12px; font-size: 17px; color: var(--body); max-width: 70ch; }
+.lessons-section { margin-top: 40px; }
+.lessons-section h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.lessons-empty { margin-top: 40px; }
 .lesson-counts { margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--body); }
 .lesson-list { display: grid; gap: 8px; margin-top: 16px; }
 .lesson { padding: 16px 20px; border-radius: 18px; background: var(--sand-50); scroll-margin-top: calc(var(--bar-h) + 16px); }
 .lesson:target { box-shadow: inset 0 0 0 2px var(--ink); }
 .lesson-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lesson-head > .pill:last-child { margin-left: auto; }
-.lesson-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; font-size: 13.5px; color: var(--muted); }
+.lesson-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 13.5px; color: var(--muted); }
+.lesson-tags .pill { height: auto; min-height: 26px; padding-block: 5px; line-height: 1.25; white-space: normal; text-align: left; }
 .lesson-text { margin: 12px 0 0; font-size: 16px; font-weight: 600; line-height: 1.45; color: var(--ink); max-width: 72ch; }
 .lesson-why { margin-top: 6px; font-size: 14.5px; color: var(--body); max-width: 72ch; }
 .lesson-meta { margin-top: 6px; font-size: 13.5px; color: var(--muted); }
@@ -485,12 +469,9 @@ ul, ol { padding: 0; list-style: none; }
   .proposal-head .pill { grid-column: 2; justify-self: start; }
   .proposal .finding-facts > div { grid-template-columns: minmax(0, 1fr); }
   .proposal-history li { grid-template-columns: minmax(0, 1fr); gap: 0; padding-bottom: 6px; border-bottom: 1px solid var(--sand-50); }
-  .rules-page h1 { font-size: 34px; }
-  .rule-row { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; }
+  .lessons-page h1 { font-size: 34px; }
   .lesson { padding: 14px 16px; }
   .lesson-head > .pill:last-child { margin-left: 0; }
-  .rule-cols { display: none; }
-  .rule-row dt { position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: 13px; font-weight: 600; color: var(--muted); }
   /* On a phone the batch takes the queue's place: the preview panel shows, the list hides. */
   .batch { padding: 18px 16px 0; }
   .batch-actions { margin: 16px -16px 0; padding: 12px 16px 16px; }

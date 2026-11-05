@@ -41,11 +41,9 @@ export function proposalState(proposal: Proposal): { label: string; tone: Tone }
 const KIND_ICON: Record<Proposal["kind"], string> = { call: "phone", operator_question: "message", customer_contact: "people", change: "file" }
 const BY_LABEL: Record<string, string> = { agent: "Agent", policy: "Policy", operator: "Operator" }
 
-export function PolicyLink({ proposal }: { proposal: Proposal }) {
+export function PolicyPill({ proposal }: { proposal: Proposal }) {
   const tone: Tone = proposal.decision === "acts alone" ? "neutral" : "warn"
-  return <Link className="policy-link" href={`/rules#${proposal.policyRow}`} title={`${proposal.policyRow}: ${proposal.decision}`}>
-    <Pill tone={tone}>{proposal.policyRow}</Pill>
-  </Link>
+  return <span title={`${proposal.policyRow}: ${proposal.decision}`}><Pill tone={tone}>{proposal.policyRow}</Pill></span>
 }
 
 /** The contact's name without the trailing context ("…, order contact for CD-420449"). */
@@ -69,20 +67,16 @@ const RULE_WORDS: Record<string, string> = {
   "site-routine": "routine site call", "driver-routine": "routine driver call", "operator-question": "question to the operator", "pickup-readiness": "pickup-readiness call",
 }
 
-const RULE_PREFIX = "Allowed by rule: "
-
-/** The line, with the rule it names linked to the Rules page. */
-export function ProposalEventText({ text, policyRow }: { text: string; policyRow: string }) {
-  const plain = proposalEventText(text)
-  if (!plain.startsWith(RULE_PREFIX)) return <>{plain}</>
-  return <>{RULE_PREFIX}<Link href={`/rules#${policyRow}`}>{plain.slice(RULE_PREFIX.length)}</Link></>
+/** The line in plain words. */
+export function ProposalEventText({ text }: { text: string }) {
+  return <>{proposalEventText(text)}</>
 }
 
 function History({ proposal }: { proposal: Proposal }) {
   return <ol className="proposal-history">{proposal.history.map((event, i) => <li key={i}>
     <span className="proposal-history-at">{fmtDateTime(event.at)}</span>
     <span className="proposal-history-by">{BY_LABEL[event.by] ?? event.by} · {event.kind}</span>
-    <span className="proposal-history-text"><ProposalEventText text={event.text} policyRow={proposal.policyRow} /></span>
+    <span className="proposal-history-text"><ProposalEventText text={event.text} /></span>
   </li>)}</ol>
 }
 
@@ -283,7 +277,7 @@ export function BatchApproval({ queue, onClose }: { queue: ApprovalQueue; onClos
       <div className="batch-body">
         <div className="batch-row-head">
           <Link className="name-link" href={`/orders/${encodeURIComponent(proposal.orderId)}#${proposal.id}`}>{proposal.reference}</Link>
-          <PolicyLink proposal={proposal} />
+          <PolicyPill proposal={proposal} />
         </div>
         <div className="batch-row-title">{proposal.title}</div>
         <blockquote className="proposal-script">{proposal.script}</blockquote>
