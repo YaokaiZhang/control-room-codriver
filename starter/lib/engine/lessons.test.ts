@@ -150,7 +150,7 @@ test("a new candidate brings a Briefing item linking to it, and it comes back af
 
   let [item] = items(await engine.state())
   assert.equal(item.title, "A new lesson needs your yes")
-  assert.equal(item.href, `/rules#lesson-${lesson.id}`)
+  assert.equal(item.href, `/lessons#lesson-${lesson.id}`)
   assert.equal(item.text, lesson.text)
   assert.equal(item.at, NOW)
   await addLessonCandidate(store, candidate(), { now: NOW })

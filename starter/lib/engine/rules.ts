@@ -518,7 +518,7 @@ export function buildFleet(bundles: Bundle[]): Fleet {
 
 /**
  * A failing check reads as the problem, not the condition it checks: these titles replace the
- * catalogue's on a fail. A pass (and the Rules page) keeps the catalogue's positive wording.
+ * catalogue's on a fail. A pass keeps the catalogue's positive wording.
  */
 const FAIL_TITLE: Partial<Record<RuleId, string>> = {
   R1: "No signed release for this pickup",
@@ -532,7 +532,7 @@ const FAIL_TITLE: Partial<Record<RuleId, string>> = {
   NEXT: "A scheduled check is overdue",
 }
 
-/** Every rule with its strength, what it checks and its first action: the Rules page lists these. */
+/** Every rule with its strength, what it checks and its first action. */
 export type RuleInfo = { id: RuleId; strength: "strong" | "weak"; title: string; firstAction: string }
 
 export const RULE_CATALOGUE: Record<RuleId, RuleInfo> = {
