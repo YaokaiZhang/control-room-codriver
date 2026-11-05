@@ -58,3 +58,11 @@ operator's correction, read by a judge, says what was wrong for any kind of mist
   questions to the paying customer: ..."); the distiller writes the rest in at most 240
   characters. One real distiller call ($0.02) gave a 251-character scoped lesson.
 - Open: the 1-check tolerance from the first run still stands.
+
+## Prepared demo DB (5 Nov, local `controlroom_lesson_demo`)
+
+- `npm run demo:lesson` on a fresh seed: edits on CD-420154, CD-420322 (21 Oct) and
+  CD-420437 (22 Oct), each adding "Please reply by 15:00 today so we can brief the driver".
+- Gate, $0.19: candidate. Spec checks 38/38 -> 38/38, fixed 3/6 -> 5/6.
+- Clock reset after: the Briefing shows "A new lesson needs your yes" and the Lessons page
+  the candidate with its three source mistakes.
