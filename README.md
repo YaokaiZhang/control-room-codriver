@@ -66,9 +66,8 @@ ready to approve. The words used on screen are fixed in [`GLOSSARY.md`](GLOSSARY
   the spec's eval cases and on learned cases marked by a judge model. A candidate needs no
   harm on the eval and a gain on the learned cases. Approved lessons are capped per agent,
   and only the cache entries they could change are invalidated.
-- **Traceability**: agent runs, model calls and prompts are stored. `/dev/trace/<order>`
-  and `/dev/trace/run/<run>` show them, and `/dev/learning` shows what changed after a
-  lesson was approved.
+- **Traceability**: agent runs, model calls, prompts and each lesson gate's trace are
+  stored in Postgres (`cr_agent_runs`, `cr_distil_runs`) for inspection.
 
 ## Layout
 

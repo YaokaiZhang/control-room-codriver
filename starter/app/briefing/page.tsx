@@ -123,7 +123,7 @@ function OrderSituation({ orderId, reference, card, now }: { orderId: string; re
 
 const COUNT_TILES: { key: Group | "urgent"; label: string }[] = [
   { key: "needs_action", label: GROUP_LABEL.needs_action },
-  { key: "urgent", label: `Urgent (of ${GROUP_LABEL.needs_action.toLowerCase()})` },
+  { key: "urgent", label: "Urgent" },
   { key: "in_progress", label: GROUP_LABEL.in_progress },
   { key: "solved", label: GROUP_LABEL.solved },
 ]

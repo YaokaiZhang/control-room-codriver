@@ -29,8 +29,8 @@ export function RecordHero({ view, lead }: { view: RecordView; lead?: ReactNode 
         <h1 className="display hero-title">{vehicle ? vehicle.title : "Vehicle not linked"}</h1>
         <p className="hero-facts">
           <span>For <Link href={`/customers/${header.customer.id}`}>{header.customer.name}</Link></span>
-          <span>Plate <b>{vehicle?.plate ?? "none"}</b></span>
-          <span>VIN <b>{vehicle?.vin ?? "none"}</b></span>
+          {vehicle?.plate && <span>Plate <b>{vehicle.plate}</b></span>}
+          {vehicle?.vin && <span>VIN <b>{vehicle.vin}</b></span>}
           <span>{header.routeKindLabel}{journey.distanceKm ? ` · ${journey.distanceKm} km` : ""}</span>
           {header.tradeIn && <span>Trade-in <b>{header.tradeIn.title}</b></span>}
           {header.customerReference && <span>Customer ref <b>{header.customerReference}</b></span>}

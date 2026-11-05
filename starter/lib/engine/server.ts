@@ -52,7 +52,7 @@ export function getStore(): EngineStore {
   return cache.controlRoomStore
 }
 
-/** Agent runs, model calls and prompt texts (Postgres; spec .scratch/traceability): what the traced gateway writes and the /dev pages read. */
+/** Agent runs, model calls and prompt texts (Postgres; spec .scratch/traceability): what the traced gateway writes; kept in the database for inspection. */
 export function getTraceStore(): TraceStore {
   cache.controlRoomTrace ??= createPostgresTraceStore(db)
   return cache.controlRoomTrace

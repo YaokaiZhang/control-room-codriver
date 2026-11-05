@@ -67,6 +67,8 @@ export function PublishingBlock({ orderId, publication, group, calls, bare = fal
   const review = pending.length > 0 || changes.length > 0
   const canPublish = publication.stage === "unposted" && group === "normal"
   if (publication.stage === "posted" && !review) return null
+  // Not on the market and nothing to approve or publish: a bare heading would only be noise.
+  if (publication.stage === "unposted" && !review && !canPublish && !publication.check?.demanding) return null
   return <div className="checks-block publishing" id="publishing">
     <h3>{review ? "Waiting for your yes" : "Driver market"}</h3>
     {(publication.stage !== "unposted" || canPublish) && <p className="publishing-stage"><Icon name="offer" className={publication.stage === "market" ? "tone-accent" : "tone-neutral"} />{STAGE_TEXT(publication)}</p>}

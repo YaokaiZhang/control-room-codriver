@@ -106,9 +106,9 @@ export function EvidenceSection({ view }: { view: RecordView }) {
 
 export function DecisionsSection({ view }: { view: RecordView }) {
   const { proposals } = view
+  if (!proposals.length) return null
   return <section className="sec" id="decisions">
     <SectionHead title="Prior agent work" count={proposals.length} />
-    {proposals.length === 0 && <Empty>None</Empty>}
     <div className="rows">{proposals.map((proposal) => <ProposalRow key={proposal.id} proposal={proposal} />)}</div>
   </section>
 }

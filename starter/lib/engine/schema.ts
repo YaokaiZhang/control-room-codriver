@@ -233,7 +233,7 @@ export const distilRuns = pgTable("cr_distil_runs", {
   mistakeIds: jsonb("mistake_ids").$type<string[]>().notNull(),
   cost: doublePrecision("cost").notNull(),
   detail: text("detail").notNull(),
-  /** The gate's trace, for engineers (/dev/learning); null when the gate did not run. */
+  /** The gate's trace, kept for inspection in the database; null when the gate did not run. */
   gate: jsonb("gate").$type<GateTrace>(),
   /** The distiller's agent run (cr_agent_runs); the gate's reviews and judges are its children. Null for restate rows and before tracing. */
   agentRunId: text("agent_run_id"),
