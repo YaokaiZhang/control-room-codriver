@@ -2,7 +2,9 @@
 
 A control room where people and agents work together to get cars delivered, built for Bahn's challenge at the Prompt Operations Hackathon (24–25 Oct 2026). The product plan is in [`docs/PRD.md`](docs/PRD.md).
 
-All data is fictional. Nothing real is connected.
+
+https://github.com/user-attachments/assets/6d56c236-f09f-4567-9be6-0c07e39a6ba2
+
 
 ## Product
 
@@ -28,8 +30,7 @@ ready to approve. The words used on screen are fixed in [`GLOSSARY.md`](GLOSSARY
   engine.
 - **Inbox**: support threads with a suggested reply and suggested steps on linked orders.
   The operator sends; the agent changes nothing itself.
-- **Publishing and travel plans**: the agent publishes checked Normal orders
-  ([ADR 0003](docs/adr/0003-agent-publishes-checked-normal-orders.md)). Fixed orders wait
+- **Publishing and travel plans**: the agent publishes checked Normal orders. Fixed orders wait
   for the operator's yes. A demanding job gets a travel plan within its budget; it is a
   recommendation, and nothing is booked.
 - **Lessons (self-improving agents)**: when the operator corrects the same kind of mistake
@@ -45,8 +46,7 @@ ready to approve. The words used on screen are fixed in [`GLOSSARY.md`](GLOSSARY
 - **Stack**: Next.js 16, TypeScript, Postgres through Drizzle, and a local S3-style store
   for attachments.
 - **Engine** (`starter/lib/engine`): the one seam the UI and API use (`state(now)` and
-  `apply(command)`). The snapshot is never edited
-  ([ADR 0002](docs/adr/0002-snapshot-is-never-edited.md)). Every change is an append-only
+  `apply(command)`). The snapshot is never edited. Every change is an append-only
   effect event in our own `cr_` tables, laid over the order's records. Reading state at
   any time gives the same answer as moving the clock there.
 - **Three layers of checking**: deterministic rules (`rules.ts`), then the reviewer agent
