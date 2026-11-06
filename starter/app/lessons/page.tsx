@@ -6,7 +6,7 @@ import type { Metadata } from "next"
 import { Lessons } from "../components/lessons"
 import { Shell } from "../components/shell"
 
-export const metadata: Metadata = { title: "Lessons · Control Room" }
+export const metadata: Metadata = { title: "Lessons · Co-Driver" }
 
 export default function LessonsPage() {
   return <Shell section="lessons"><main className="page lessons-page">

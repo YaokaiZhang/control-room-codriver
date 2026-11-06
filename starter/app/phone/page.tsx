@@ -3,7 +3,7 @@ import { PhoneApp } from "@/app/components/phone"
 import { Shell } from "@/app/components/shell"
 import { currentPersona } from "@/lib/persona-server"
 
-export const metadata: Metadata = { title: "Phone · Control Room" }
+export const metadata: Metadata = { title: "Phone · Co-Driver" }
 
 /**
  * The mock phone (ticket 11) for the Site and Driver personas: it rings for demo

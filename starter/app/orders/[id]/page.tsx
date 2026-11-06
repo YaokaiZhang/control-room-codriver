@@ -31,7 +31,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   }, [id, clockVersion, tick])
 
   useEffect(() => {
-    if (detail) document.title = `${detail.view.header.reference} · ${detail.view.header.vehicle?.title ?? "Order"} · Control Room`
+    if (detail) document.title = `${detail.view.header.reference} · ${detail.view.header.vehicle?.title ?? "Order"} · Co-Driver`
   }, [detail])
 
   return <Shell section="orders" snapshotAt={detail?.view.snapshotAt ?? null}><main className="page">

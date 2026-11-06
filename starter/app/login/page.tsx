@@ -5,7 +5,7 @@ import { PERSONA_LABEL, type Persona } from "@/lib/persona"
 import { currentPersona } from "@/lib/persona-server"
 import { choosePersona } from "./actions"
 
-export const metadata: Metadata = { title: "Choose a persona · Control Room" }
+export const metadata: Metadata = { title: "Choose a persona · Co-Driver" }
 
 const ABOUT: Record<Persona, string> = {
   operator: "Works the orders and makes the decisions.",
@@ -27,7 +27,7 @@ export default async function PickerPage({ searchParams }: { searchParams: Promi
     current: persona === current, badge: persona === current ? <Icon name="check" size={14} /> : undefined,
   }))
   return <Windscreen
-    eyebrow="Control Room"
+    eyebrow="Bahn Co-Driver"
     title={<>Hi, <em>Bahner</em>, who is driving today?</>}
     label="Choose a persona"
     choices={choices}

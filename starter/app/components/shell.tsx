@@ -31,9 +31,9 @@ export function Shell({ children, section, snapshotAt, fixed = false }: { childr
   const briefing = useBriefingFeed(persona === "operator")
   return <div className={`shell${fixed ? " shell-fixed" : ""}`}>
     <header className="bar">
-      <Link href={persona ? homeFor(persona) : PICKER_PATH} className="brand" aria-label="Control Room home">
+      <Link href={persona ? homeFor(persona) : PICKER_PATH} className="brand" aria-label="Co-Driver home">
         <BahnLogo />
-        <span className="brand-room">Control Room</span>
+        <span className="brand-room">Co-Driver</span>
       </Link>
       {persona === "operator" && <nav className="nav" aria-label="Main navigation">
         {NAV_LINKS.map((link) => <Link key={link.section} href={link.href} aria-current={section === link.section ? "page" : undefined}>

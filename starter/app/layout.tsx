@@ -9,7 +9,7 @@ const archivo = Archivo({ subsets: ["latin", "latin-ext"], axes: ["wdth"], varia
 const figtree = Figtree({ subsets: ["latin", "latin-ext"], variable: "--font-figtree", display: "swap" })
 
 export const metadata: Metadata = {
-  title: "Control Room · Bahn",
+  title: "Co-Driver · Bahn",
   description: "Where Bahn operators and agents work together to get every car delivered. Fictional data.",
 }
 
